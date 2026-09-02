@@ -1,0 +1,67 @@
+# ─── Python ────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+.env
+!.env.example
+pip-wheel-metadata/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# ─── Alembic ────────────────────────────────────
+# Keep version files, exclude temp files
+alembic/versions/__pycache__/
+
+# ─── Node / Next.js ─────────────────────────────
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/.env
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# ─── Docker ─────────────────────────────────────
+*.log
+
+# ─── Certificates (never commit private keys) ───
+infra/certs/*.pem
+infra/certs/*.key
+infra/certs/*.crt
+
+# ─── IDE ────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ─── Celery ─────────────────────────────────────
+celerybeat-schedule
+celerybeat.pid
+
+# ─── Misc ───────────────────────────────────────
+*.pyc
+*.pyo
+.hypothesis/
