@@ -1,8 +1,11 @@
-"""FastAPI router for trace graph and status endpoints.
+"""FastAPI router for trace graph endpoints.
 
-Exposes:
-  GET /traces/{trace_id}/graph   — return serialised graph data for a completed trace
-  GET /traces/{trace_id}/status  — return current status/progress of a trace job
+Endpoints
+---------
+GET  /traces/{trace_id}/graph            — serialised graph JSON
+GET  /traces/{trace_id}/status           — trace job progress + risk fields
+POST /traces/{trace_id}/expand           — queue an expand_graph Celery task
+GET  /traces/{trace_id}/expand/status    — poll expand task result
 
 Requirements: 5.5, 15.4
 """
@@ -24,44 +27,96 @@ router = APIRouter(prefix="/traces", tags=["traces"])
 
 
 # ---------------------------------------------------------------------------
-# GET /traces/{trace_id}/graph
+# GET /traces/{trace_id}/llm-analysis
 # ---------------------------------------------------------------------------
 
 
 @router.get(
-    "/{trace_id}/graph",
-    summary="Retrieve serialised transaction graph for a trace",
-    description=(
-        "Returns the NetworkX node-link JSON representation of the transaction graph "
-        "built during the trace job identified by *trace_id*. "
-        "Requires at minimum the investigator role. "
-        "Requirements: 5.5"
-    ),
+    "/{trace_id}/llm-analysis",
+    summary="Get LLM suspicion analysis for all wallets in a trace",
 )
-async def get_trace_graph(
+async def get_llm_analysis(
     trace_id: uuid.UUID,
     current_user: Annotated[User, Depends(require_investigator)],
     db: Annotated[AsyncSession, Depends(get_db)],
-) -> Any:
-    """GET /traces/{trace_id}/graph — return raw graph_data JSON.
+) -> dict[str, Any]:
+    """Return per-wallet suspicion scores, labels, reasons, and flags.
 
-    Returns the stored ``node_link_data`` dictionary directly so the caller
-    can reconstruct the graph client-side or pass it to a visualisation layer.
+    Results come from the in-process cache if available (populated when the
+    trace ran).  If the cache is cold (e.g. after a worker restart), the
+    graph node attributes ``llm_score`` / ``llm_label`` / ``llm_reason`` /
+    ``llm_flags`` stored in the graph_data JSONB are used instead.
 
-    Raises:
-        HTTPException(404): If no graph has been persisted for *trace_id*.
+    Returns ``{"wallets": [...], "source": "cache"|"graph"}``
     """
+    from app.risk.llm_analyst import get_cached, WalletAnalysis
+
+    # 1. Try in-memory cache first (cheap)
+    cached = get_cached(str(trace_id))
+    if cached:
+        return {
+            "trace_id": str(trace_id),
+            "source":   "cache",
+            "wallets":  [
+                {
+                    "address":         w.address,
+                    "suspicion_score": w.suspicion_score,
+                    "label":           w.label,
+                    "reason":          w.reason,
+                    "flags":           w.flags,
+                }
+                for w in cached
+            ],
+        }
+
+    # 2. Fall back to graph node attributes (persisted in JSONB)
     result = await db.execute(
         select(TraceGraph).where(TraceGraph.trace_id == trace_id)
     )
     record = result.scalars().first()
-
     if record is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No graph found for trace_id {trace_id}",
         )
 
+    wallets = []
+    for node in (record.graph_data or {}).get("nodes", []):
+        if "llm_score" in node:
+            wallets.append({
+                "address":         str(node.get("id", "")),
+                "suspicion_score": int(node["llm_score"]),
+                "label":           str(node.get("llm_label", "unknown")),
+                "reason":          str(node.get("llm_reason", "")),
+                "flags":           list(node.get("llm_flags", [])),
+            })
+
+    return {
+        "trace_id": str(trace_id),
+        "source":   "graph",
+        "wallets":  wallets,
+    }
+
+# ---------------------------------------------------------------------------
+# GET /traces/{trace_id}/graph
+# ---------------------------------------------------------------------------
+
+
+@router.get("/{trace_id}/graph", summary="Retrieve serialised transaction graph")
+async def get_trace_graph(
+    trace_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_investigator)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> Any:
+    result = await db.execute(
+        select(TraceGraph).where(TraceGraph.trace_id == trace_id)
+    )
+    record = result.scalars().first()
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No graph found for trace_id {trace_id}",
+        )
     return record.graph_data
 
 
@@ -70,58 +125,128 @@ async def get_trace_graph(
 # ---------------------------------------------------------------------------
 
 
-@router.get(
-    "/{trace_id}/status",
-    summary="Retrieve the current status of a trace job",
-    description=(
-        "Returns progress and risk metadata for the TraceJob identified by *trace_id*. "
-        "Requires at minimum the investigator role. "
-        "Requirements: 5.5, 15.4"
-    ),
-)
+@router.get("/{trace_id}/status", summary="Retrieve trace job status and progress")
 async def get_trace_status(
     trace_id: uuid.UUID,
     current_user: Annotated[User, Depends(require_investigator)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ) -> dict[str, Any]:
-    """GET /traces/{trace_id}/status — return trace job progress and risk fields.
-
-    Returns a dictionary with the following keys:
-
-    * ``trace_id``      — UUID of the trace job
-    * ``status``        — lifecycle state: queued | running | completed | failed | rate-limited
-    * ``current_hop``   — last completed BFS hop (0-indexed)
-    * ``max_hops``      — configured maximum traversal depth
-    * ``estimated_pct`` — worker-reported completion percentage (0–100), or null
-    * ``enqueued_at``   — ISO timestamp when the job was queued
-    * ``started_at``    — ISO timestamp when the worker picked up the job, or null
-    * ``completed_at``  — ISO timestamp when the job reached a terminal state, or null
-    * ``risk_score``    — most recent risk score (0–100), or null
-    * ``risk_band``     — low | medium | high, or null
-
-    Raises:
-        HTTPException(404): If no TraceJob exists with the given *trace_id*.
-    """
     result = await db.execute(
         select(TraceJob).where(TraceJob.id == trace_id)
     )
     job = result.scalars().first()
-
     if job is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No trace job found with id {trace_id}",
         )
-
     return {
-        "trace_id": job.id,
-        "status": job.status,
-        "current_hop": job.current_hop,
-        "max_hops": job.max_hops,
+        "trace_id":     job.id,
+        "status":       job.status,
+        "current_hop":  job.current_hop,
+        "max_hops":     job.max_hops,
         "estimated_pct": job.estimated_pct,
-        "enqueued_at": job.enqueued_at,
-        "started_at": job.started_at,
+        "enqueued_at":  job.enqueued_at,
+        "started_at":   job.started_at,
         "completed_at": job.completed_at,
-        "risk_score": job.risk_score,
-        "risk_band": job.risk_band,
+        "risk_score":   job.risk_score,
+        "risk_band":    job.risk_band,
     }
+
+
+# ---------------------------------------------------------------------------
+# POST /traces/{trace_id}/expand
+# ---------------------------------------------------------------------------
+
+
+@router.post(
+    "/{trace_id}/expand",
+    status_code=status.HTTP_202_ACCEPTED,
+    summary="Queue a one-hop graph expansion from leaf nodes",
+    description=(
+        "Enqueues an expand_graph Celery task that deepens the existing "
+        "transaction graph by one additional BFS hop from all leaf nodes "
+        "(wallets with no outgoing edges explored yet). "
+        "Returns the Celery task ID immediately; poll /expand/status to "
+        "check completion."
+    ),
+)
+async def expand_trace_graph(
+    trace_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_investigator)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, str]:
+    # Verify the trace job exists and is completed
+    result = await db.execute(
+        select(TraceJob).where(TraceJob.id == trace_id)
+    )
+    job = result.scalars().first()
+    if job is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"TraceJob {trace_id} not found",
+        )
+    if job.status not in ("completed", "failed"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"TraceJob is currently '{job.status}' — can only expand completed traces",
+        )
+
+    # Verify a graph exists
+    graph_result = await db.execute(
+        select(TraceGraph).where(TraceGraph.trace_id == trace_id)
+    )
+    if graph_result.scalars().first() is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No graph persisted for trace_id {trace_id} — run the trace first",
+        )
+
+    from app.tasks.trace_tasks import expand_graph
+    task = expand_graph.apply_async(
+        args=[str(trace_id)],
+        queue="traces",
+    )
+
+    return {"celery_task_id": task.id, "trace_id": str(trace_id)}
+
+
+# ---------------------------------------------------------------------------
+# GET /traces/{trace_id}/expand/status
+# ---------------------------------------------------------------------------
+
+
+@router.get(
+    "/{trace_id}/expand/status",
+    summary="Poll the status of an expand_graph task",
+)
+async def get_expand_status(
+    trace_id: uuid.UUID,
+    celery_task_id: str,
+    current_user: Annotated[User, Depends(require_investigator)],
+) -> dict[str, Any]:
+    """Poll Celery for the result of an expand_graph task.
+
+    Query param: ``celery_task_id`` — returned by POST /expand.
+
+    States returned: ``PENDING``, ``STARTED``, ``SUCCESS``, ``FAILURE``.
+    On ``SUCCESS`` the result dict contains ``nodes``, ``edges``, ``new_nodes``.
+    """
+    from celery.result import AsyncResult
+    from app.tasks.celery_app import celery_app
+
+    ar = AsyncResult(celery_task_id, app=celery_app)
+    state = ar.state
+
+    response: dict[str, Any] = {
+        "trace_id":       str(trace_id),
+        "celery_task_id": celery_task_id,
+        "state":          state,
+    }
+
+    if state == "SUCCESS":
+        response["result"] = ar.result
+    elif state == "FAILURE":
+        response["error"] = str(ar.result)
+
+    return response

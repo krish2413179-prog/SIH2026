@@ -122,7 +122,7 @@ class BlockchainAdapter(ABC):
         address: str,
         *,
         page: int = 1,
-        page_size: int = 100,
+        page_size: int = 500,
     ) -> list[RawTransaction]:
         """Return a paginated list of transactions for *address*.
 

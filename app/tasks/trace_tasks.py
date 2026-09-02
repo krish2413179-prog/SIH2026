@@ -1,8 +1,7 @@
-"""Celery task: run a blockchain trace job.
+"""Celery tasks: run_trace and expand_graph.
 
-Implements the core worker logic for tracing a wallet address across its
-blockchain transaction graph, persisting the result, and updating the
-TraceJob lifecycle state.
+run_trace    — full BFS trace from scratch with min_nodes=20 / deadline=300s
+expand_graph — one additional BFS hop from leaf nodes of a completed graph
 
 Requirements: 5.5, 15.4
 """
@@ -16,28 +15,22 @@ from datetime import datetime, timezone
 
 from celery.exceptions import MaxRetriesExceededError
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from app.tasks.celery_app import celery_app
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Shared sync-session factory
+# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Sync engine helper
-# ---------------------------------------------------------------------------
 
 def _get_sync_session_factory() -> sessionmaker:
-    """Return a sync sessionmaker bound to the sync database engine.
-
-    Prefers the ``DATABASE_SYNC_URL`` environment variable; falls back to
-    ``settings.database_sync_url`` from application config.
-    """
     sync_url = os.environ.get("DATABASE_SYNC_URL")
     if not sync_url:
         from app.config import get_settings
         sync_url = get_settings().database_sync_url
-
     engine = create_engine(
         sync_url,
         pool_pre_ping=True,
@@ -48,8 +41,13 @@ def _get_sync_session_factory() -> sessionmaker:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
+def _get_trace_job_model():
+    from app.graph.models import TraceJob
+    return TraceJob
+
+
 # ---------------------------------------------------------------------------
-# Celery task
+# run_trace
 # ---------------------------------------------------------------------------
 
 
@@ -57,46 +55,26 @@ def _get_sync_session_factory() -> sessionmaker:
     name="tasks.trace.run_trace",
     bind=True,
     max_retries=3,
+    # 7-minute soft timeout so Celery doesn't kill a trace that's near the
+    # 5-minute deadline but still writing results to the DB.
+    soft_time_limit=420,
+    time_limit=480,
 )
 def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
-    """Execute a full blockchain trace for the given TraceJob.
+    """Full blockchain trace for the given TraceJob.
 
-    Steps
-    -----
-    1. Open a synchronous SQLAlchemy session.
-    2. Load :class:`~app.graph.models.TraceJob` by *trace_job_id*; set
-       ``status='running'`` and ``started_at=now()``, flush.
-    3. Obtain a :class:`~app.adapters.base.BlockchainAdapter` for the job's
-       chain via :func:`~app.adapters.registry.get_adapter`.
-    4. Build the transaction graph using
-       :func:`~app.graph.builder.build_graph` (run via ``asyncio.run``).
-    5. Persist the graph using
-       :func:`~app.graph.persistence.save_graph` (run via ``asyncio.run``
-       with a dedicated async session).
-    6. Set ``status='completed'``, ``completed_at=now()``,
-       ``estimated_pct=100.0``, and commit.
-    7. On any unhandled exception: set ``status='failed'``,
-       ``completed_at=now()``, commit, then retry with a 30-second countdown.
-       After ``max_retries`` exhausted the failure state is preserved.
-
-    Args:
-        trace_job_id: String UUID of the :class:`~app.graph.models.TraceJob`
-            to process.
-
-    Requirements: 5.5, 15.4
+    Keeps expanding BFS hops until the graph has >= 20 unique wallet nodes
+    or 5 minutes elapse, then persists whatever was built and marks the job
+    completed.
     """
     job_uuid = uuid.UUID(trace_job_id)
-    SyncSession: sessionmaker = _get_sync_session_factory()
+    SyncSession = _get_sync_session_factory()
 
     with SyncSession() as db:
         try:
-            # ----------------------------------------------------------------
-            # 1–2. Load job and mark as running
-            # ----------------------------------------------------------------
+            TraceJob = _get_trace_job_model()
             job = db.execute(
-                select(_get_trace_job_model()).where(
-                    _get_trace_job_model().id == job_uuid
-                )
+                select(TraceJob).where(TraceJob.id == job_uuid)
             ).scalars().first()
 
             if job is None:
@@ -108,25 +86,50 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
             db.flush()
             db.commit()
 
-            # ----------------------------------------------------------------
-            # 3. Get blockchain adapter
-            # ----------------------------------------------------------------
             from app.adapters.registry import get_adapter
             adapter = get_adapter(job.chain)
 
-            # ----------------------------------------------------------------
-            # 4 + 5. Build graph AND save — single asyncio.run() call to avoid
-            #        "Event loop is closed" error on Python 3.14 with solo pool
-            # ----------------------------------------------------------------
             from app.graph.builder import build_graph
 
-            async def _build_and_save():
+            async def _build_and_save() -> object:
                 G = await build_graph(
                     seed_address=job.wallet_address,
                     chain=job.chain,
                     adapter=adapter,
                     max_hops=job.max_hops,
+                    # ── new params ─────────────────────────────────────
+                    min_nodes=20,
+                    deadline_seconds=300.0,
                 )
+
+                # ── LLM suspicion analysis ──────────────────────────
+                try:
+                    from app.risk.llm_analyst import analyse_graph, invalidate_cache
+                    invalidate_cache(str(job.id))
+                    analyses = await analyse_graph(
+                        trace_id=str(job.id),
+                        seed_address=job.wallet_address,
+                        chain=job.chain,
+                        G=G,
+                    )
+                    # Annotate graph nodes with LLM results
+                    analysis_map = {a.address.lower(): a for a in analyses}
+                    for node in G.nodes():
+                        a = analysis_map.get(str(node).lower())
+                        if a:
+                            G.nodes[node]["llm_score"]  = a.suspicion_score
+                            G.nodes[node]["llm_label"]  = a.label
+                            G.nodes[node]["llm_reason"] = a.reason
+                            G.nodes[node]["llm_flags"]  = a.flags
+                            # Promote entity_type for highly suspicious wallets
+                            if a.label == "highly_suspicious":
+                                G.nodes[node]["entity_type"] = "flagged"
+                except Exception:
+                    logger.warning(
+                        "run_trace: LLM analysis failed for %s — continuing without it",
+                        job.wallet_address, exc_info=True,
+                    )
+
                 await _save_graph_async(
                     trace_id=job.id,
                     case_id=job.case_id,
@@ -138,18 +141,10 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
 
             G = asyncio.run(_build_and_save())
 
-            # ----------------------------------------------------------------
-            # 6. Mark job as completed
-            # ----------------------------------------------------------------
-            # Re-query within the same session to get a fresh reference after
-            # the async save committed in a different connection.
             with SyncSession() as final_db:
                 final_job = final_db.execute(
-                    select(_get_trace_job_model()).where(
-                        _get_trace_job_model().id == job_uuid
-                    )
+                    select(TraceJob).where(TraceJob.id == job_uuid)
                 ).scalars().first()
-
                 if final_job is not None:
                     final_job.status = "completed"
                     final_job.completed_at = datetime.now(timezone.utc)
@@ -157,59 +152,162 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
                     final_db.commit()
 
             logger.info(
-                "run_trace: TraceJob %s completed successfully "
-                "(nodes=%d, edges=%d)",
-                trace_job_id,
-                G.number_of_nodes(),
-                G.number_of_edges(),
+                "run_trace: TraceJob %s completed (nodes=%d, edges=%d)",
+                trace_job_id, G.number_of_nodes(), G.number_of_edges(),
             )
 
         except Exception as exc:
-            # ----------------------------------------------------------------
-            # 7. Handle failure — mark job failed, then schedule retry
-            # ----------------------------------------------------------------
-            logger.exception(
-                "run_trace: TraceJob %s failed with error: %s",
-                trace_job_id,
-                exc,
-            )
-
+            logger.exception("run_trace: TraceJob %s failed: %s", trace_job_id, exc)
             try:
                 with SyncSession() as fail_db:
+                    TraceJob = _get_trace_job_model()
                     failed_job = fail_db.execute(
-                        select(_get_trace_job_model()).where(
-                            _get_trace_job_model().id == job_uuid
-                        )
+                        select(TraceJob).where(TraceJob.id == job_uuid)
                     ).scalars().first()
-
                     if failed_job is not None:
                         failed_job.status = "failed"
                         failed_job.completed_at = datetime.now(timezone.utc)
                         fail_db.commit()
             except Exception:
-                logger.exception(
-                    "run_trace: Failed to persist failure state for TraceJob %s",
-                    trace_job_id,
-                )
-
+                logger.exception("run_trace: could not persist failure for %s", trace_job_id)
             try:
                 raise self.retry(exc=exc, countdown=30)
             except MaxRetriesExceededError:
-                logger.error(
-                    "run_trace: TraceJob %s exhausted all retries — permanently failed",
-                    trace_job_id,
+                logger.error("run_trace: %s exhausted retries — permanently failed", trace_job_id)
+
+
+# ---------------------------------------------------------------------------
+# expand_graph
+# ---------------------------------------------------------------------------
+
+
+@celery_app.task(
+    name="tasks.trace.expand_graph",
+    bind=True,
+    max_retries=2,
+    soft_time_limit=180,
+    time_limit=240,
+)
+def expand_graph(self, trace_job_id: str) -> dict:  # type: ignore[override]
+    """Expand an already-completed trace graph by one additional BFS hop.
+
+    Loads the persisted graph for *trace_job_id*, runs
+    ``build_graph_expand()`` from all leaf nodes (wallets with no outgoing
+    edges in the current graph), and overwrites the stored graph_data with
+    the expanded result.
+
+    Returns a summary dict: ``{"nodes": int, "edges": int, "new_nodes": int}``.
+    """
+    job_uuid = uuid.UUID(trace_job_id)
+    SyncSession = _get_sync_session_factory()
+
+    try:
+        TraceJob = _get_trace_job_model()
+        with SyncSession() as db:
+            job = db.execute(
+                select(TraceJob).where(TraceJob.id == job_uuid)
+            ).scalars().first()
+            if job is None:
+                raise ValueError(f"TraceJob {trace_job_id} not found")
+            chain         = job.chain
+            wallet_address = job.wallet_address
+            case_id       = job.case_id
+
+        from app.adapters.registry import get_adapter
+        from app.graph.builder import build_graph_expand
+
+        adapter = get_adapter(chain)
+
+        async def _expand_and_save() -> dict:
+            from app.graph.persistence import get_graph
+            # load existing graph
+            engine, AsyncSessionLocal = _make_async_engine_session()
+            try:
+                async with AsyncSessionLocal() as async_db:
+                    G = await get_graph(job_uuid, async_db)
+                if G is None:
+                    raise ValueError(f"No graph found for TraceJob {trace_job_id}")
+
+                nodes_before = G.number_of_nodes()
+                G = await build_graph_expand(
+                    G=G,
+                    chain=chain,
+                    adapter=adapter,
+                    deadline_seconds=120.0,
                 )
+                new_nodes = G.number_of_nodes() - nodes_before
+
+                # persist expanded graph
+                async with AsyncSessionLocal() as async_db:
+                    try:
+                        from app.graph.persistence import save_graph
+                        await save_graph(
+                            trace_id=job_uuid,
+                            case_id=case_id,
+                            wallet_address=wallet_address,
+                            chain=chain,
+                            G=G,
+                            db=async_db,
+                        )
+                        await async_db.commit()
+                    except Exception:
+                        await async_db.rollback()
+                        raise
+            finally:
+                await engine.dispose()
+
+            return {
+                "nodes":     G.number_of_nodes(),
+                "edges":     G.number_of_edges(),
+                "new_nodes": new_nodes,
+            }
+
+        result = asyncio.run(_expand_and_save())
+        logger.info(
+            "expand_graph: TraceJob %s expanded to %d nodes (+%d), %d edges",
+            trace_job_id, result["nodes"], result["new_nodes"], result["edges"],
+        )
+        return result
+
+    except Exception as exc:
+        logger.exception("expand_graph: %s failed: %s", trace_job_id, exc)
+        try:
+            raise self.retry(exc=exc, countdown=15)
+        except MaxRetriesExceededError:
+            logger.error("expand_graph: %s exhausted retries", trace_job_id)
+            return {"nodes": 0, "edges": 0, "new_nodes": 0, "error": str(exc)}
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# Shared async helpers
 # ---------------------------------------------------------------------------
 
 
-def _get_trace_job_model():
-    """Lazily import TraceJob to avoid circular imports at module load time."""
-    from app.graph.models import TraceJob
-    return TraceJob
+def _make_async_engine_session():
+    """Create a fresh async engine + sessionmaker for the current event loop.
+
+    Always call inside asyncio.run() to avoid cross-loop asyncpg issues.
+    """
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker as sa_sessionmaker
+
+    async_url = os.environ.get("DATABASE_URL")
+    if not async_url:
+        from app.config import get_settings
+        async_url = get_settings().database_url
+
+    engine = create_async_engine(
+        async_url,
+        pool_pre_ping=True,
+        pool_size=2,
+        max_overflow=5,
+    )
+    AsyncSessionLocal = sa_sessionmaker(
+        bind=engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    return engine, AsyncSessionLocal
 
 
 async def _save_graph_async(
@@ -219,26 +317,24 @@ async def _save_graph_async(
     chain: str,
     G,
 ) -> None:
-    """Persist the graph using a fresh async session.
-
-    Runs inside ``asyncio.run()`` from the synchronous Celery task context.
-    A separate :class:`~sqlalchemy.ext.asyncio.AsyncSession` is used so that
-    the async persistence layer is independent of the sync Celery session.
-    """
-    from app.db.session import AsyncSessionLocal
+    """Persist graph using a fresh async engine scoped to the current loop."""
     from app.graph.persistence import save_graph
 
-    async with AsyncSessionLocal() as async_db:
-        try:
-            await save_graph(
-                trace_id=trace_id,
-                case_id=case_id,
-                wallet_address=wallet_address,
-                chain=chain,
-                G=G,
-                db=async_db,
-            )
-            await async_db.commit()
-        except Exception:
-            await async_db.rollback()
-            raise
+    engine, AsyncSessionLocal = _make_async_engine_session()
+    try:
+        async with AsyncSessionLocal() as async_db:
+            try:
+                await save_graph(
+                    trace_id=trace_id,
+                    case_id=case_id,
+                    wallet_address=wallet_address,
+                    chain=chain,
+                    G=G,
+                    db=async_db,
+                )
+                await async_db.commit()
+            except Exception:
+                await async_db.rollback()
+                raise
+    finally:
+        await engine.dispose()

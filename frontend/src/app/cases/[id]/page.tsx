@@ -6,12 +6,13 @@
  * Requirements: 2.3, 3.1, 3.5, 10.1
  */
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import api from '@/lib/api';
 import { getCurrentUser } from '@/lib/auth';
 import dynamic from 'next/dynamic';
+import { GitBranch } from 'lucide-react';
 
 const GraphViewer = dynamic(
   () => import('@/components/GraphViewer/GraphViewer').then(m => m.GraphViewer ?? m.default),
@@ -47,6 +48,10 @@ export default function CaseDetailPage() {
   const [submitErrors, setSubmitErrors] = useState<any[]>([]);
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'traces' | 'reports'>('traces');
+  // ref to scroll submit panel into view when "Trace this wallet" is clicked from graph
+  const submitPanelRef = useRef<HTMLElement>(null);
+  // banner shown when an address is pre-filled from the graph popup
+  const [graphTraceBanner, setGraphTraceBanner] = useState<string | null>(null);
 
   // Fetch case
   const { data: caseData, isLoading: caseLoading } = useQuery({
@@ -80,8 +85,9 @@ export default function CaseDetailPage() {
 
   // Wallet submission mutation
   const submitMutation = useMutation({
-    mutationFn: async () => {
-      const lines = addresses.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 50);
+    mutationFn: async (overrideAddress?: string) => {
+      const source = overrideAddress ?? addresses;
+      const lines = source.split('\n').map(l => l.trim()).filter(Boolean).slice(0, 50);
       const items = lines.map(addr => ({
         address: addr,
         ...(chainOverride ? { chain: chainOverride } : {}),
@@ -96,6 +102,22 @@ export default function CaseDetailPage() {
       qc.invalidateQueries({ queryKey: ['traces', id] });
     },
   });
+
+  /**
+   * Called when the user clicks "Trace this wallet" from a graph node popup.
+   * Pre-fills the submission panel, scrolls to it, and auto-submits.
+   */
+  const handleTraceWallet = useCallback((address: string, chain?: string) => {
+    setAddresses(address);
+    if (chain) setChainOverride(chain);
+    setGraphTraceBanner(address);
+    submitPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // Brief pause so the user sees the pre-fill, then auto-submit
+    setTimeout(() => {
+      setGraphTraceBanner(null);
+      submitMutation.mutate(address);
+    }, 700);
+  }, [submitMutation]);
 
   if (caseLoading) {
     return (
@@ -124,8 +146,17 @@ export default function CaseDetailPage() {
         {/* Wallet submission + trace jobs */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Wallet Submission */}
-          <section className="rounded-xl border border-gray-700 bg-gray-800 p-5">
+          <section ref={submitPanelRef} className="rounded-xl border border-gray-700 bg-gray-800 p-5">
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-gray-400">Submit Wallets</h2>
+
+            {/* Banner shown when address is pre-filled from graph */}
+            {graphTraceBanner && (
+              <div className="mb-3 flex items-center gap-2 rounded-lg border border-blue-700 bg-blue-900/30 px-3 py-2 text-xs text-blue-300">
+                <GitBranch className="w-3.5 h-3.5 shrink-0" />
+                <span>Tracing <span className="font-mono">{graphTraceBanner}</span> from graph…</span>
+              </div>
+            )}
+
             <div className="space-y-3">
               <textarea
                 value={addresses}
@@ -144,7 +175,7 @@ export default function CaseDetailPage() {
                   {CHAINS.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
                 <button
-                  onClick={() => submitMutation.mutate()}
+                  onClick={() => submitMutation.mutate(undefined)}
                   disabled={submitMutation.isPending || !addresses.trim()}
                   className="flex-1 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
                 >
@@ -212,7 +243,7 @@ export default function CaseDetailPage() {
             <h2 className="mb-4 text-sm font-semibold uppercase tracking-widest text-gray-400">Transaction Graph</h2>
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
               <div className="lg:col-span-2">
-                <GraphViewer traceId={selectedTraceId} />
+                <GraphViewer traceId={selectedTraceId} onTraceWallet={handleTraceWallet} />
               </div>
               <div>
                 <RiskPanel traceId={selectedTraceId} />

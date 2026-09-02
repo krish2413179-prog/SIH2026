@@ -1,14 +1,22 @@
 """Transaction graph construction using NetworkX DiGraph.
 
-Implements BFS-based multi-hop traversal of blockchain transaction data,
-converting raw adapter output into an annotated directed graph with per-node
-metrics and cross-chain bridge tagging.
+BFS-based multi-hop traversal with:
+  - ERC-20 / token tx support (via adapter.get_transactions which now merges both)
+  - min_nodes guarantee: keeps expanding hops until the graph has >= min_nodes
+    unique wallet addresses, up to max_hops hard limit
+  - deadline_seconds: hard wall-clock timeout — returns whatever was built so far
+    if the deadline fires before min_nodes is reached
+  - on-demand expand: build_graph_expand() deepens an existing nx.DiGraph by
+    one additional BFS hop from all leaf nodes (no incoming edges from inside
+    the existing graph)
 
 Requirements: 5.1, 5.2, 5.3, 5.4
 """
 
 from __future__ import annotations
 
+import asyncio
+import time
 import warnings
 from datetime import datetime
 from decimal import Decimal
@@ -21,33 +29,46 @@ if TYPE_CHECKING:
     from app.adapters import BlockchainAdapter
 
 # ---------------------------------------------------------------------------
-# Constants / configuration
+# Constants
 # ---------------------------------------------------------------------------
 
 #: Hard upper limit on BFS depth regardless of caller-supplied value.
 MAX_HOPS_HARD_LIMIT: int = 10
 
-#: Node count threshold that triggers a GraphSizeWarning and stops expansion.
+#: Minimum wallets we aim for before stopping BFS.
+DEFAULT_MIN_NODES: int = 20
+
+#: Wall-clock budget in seconds for the build phase.
+DEFAULT_DEADLINE_SECONDS: float = 300.0  # 5 minutes
+
+#: Stop BFS expansion once the graph exceeds this many nodes.
 NODE_COUNT_LIMIT: int = 10_000
 
-#: Edge count threshold above which low-value edges are pruned.
+#: Prune low-value edges once the graph exceeds this many edges.
 EDGE_COUNT_PRUNE_THRESHOLD: int = 50_000
 
-#: Percentile below which edges are removed during pruning.
+#: Percentile below which edges are pruned.
 PRUNE_PERCENTILE: float = 10.0
 
 #: Expandable registry of known bridge contract addresses.
-#  Add entries via ``KNOWN_BRIDGE_CONTRACTS.add(address)`` at startup.
 KNOWN_BRIDGE_CONTRACTS: set[str] = set()
 
 
 # ---------------------------------------------------------------------------
-# Warning class
+# Warning
 # ---------------------------------------------------------------------------
 
 
 class GraphSizeWarning(UserWarning):
     """Emitted when the graph exceeds NODE_COUNT_LIMIT nodes during traversal."""
+
+
+class DeadlineWarning(UserWarning):
+    """Emitted when build_graph returns early because the deadline was hit."""
+
+
+class MinNodesWarning(UserWarning):
+    """Emitted when build_graph exhausted max_hops without reaching min_nodes."""
 
 
 # ---------------------------------------------------------------------------
@@ -60,117 +81,213 @@ async def build_graph(
     chain: str,
     adapter: "BlockchainAdapter",
     max_hops: int = 5,
+    *,
+    min_nodes: int = DEFAULT_MIN_NODES,
+    deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
 ) -> nx.DiGraph:
     """Build a directed transaction graph via BFS from *seed_address*.
+
+    Expansion continues hop-by-hop until **any** of these conditions is met:
+
+    1. ``G.number_of_nodes() >= min_nodes``  — target reached ✓
+    2. All BFS frontiers exhausted (no more new addresses to visit)
+    3. ``max_hops`` reached (clamped to MAX_HOPS_HARD_LIMIT)
+    4. Wall-clock time since the call exceeds ``deadline_seconds``
+    5. Node count guard: graph >= NODE_COUNT_LIMIT
+
+    In cases 2-5 the function returns whatever was built up to that point
+    and emits an appropriate warning.  It never raises on timeout.
 
     Parameters
     ----------
     seed_address:
-        The starting wallet address for the traversal.
+        Starting wallet address.
     chain:
-        Blockchain identifier (e.g. ``"ETH"``, ``"BTC"``).
+        Blockchain identifier (``"ETH"``, ``"BSC"``, ``"BTC"``, …).
     adapter:
-        A :class:`~app.adapters.BlockchainAdapter` instance used to fetch
-        transactions for each address encountered during traversal.
+        :class:`~app.adapters.BlockchainAdapter` used to fetch transactions.
+        For Etherscan-family chains this now returns both native + ERC-20 txs.
     max_hops:
-        Maximum BFS depth.  Clamped to
-        ``[1, MAX_HOPS_HARD_LIMIT]`` internally (default 5, hard max 10).
+        Maximum BFS depth (clamped to MAX_HOPS_HARD_LIMIT).
+    min_nodes:
+        Keep expanding hops until the graph has at least this many nodes.
+        Default 20.
+    deadline_seconds:
+        Hard wall-clock budget.  Returns early if exceeded.  Default 300 (5 min).
 
     Returns
     -------
     nx.DiGraph
-        Fully populated directed graph with node and edge attributes as
-        defined in the design document (Section 5).
-
-    Notes
-    -----
-    Memory guards (Requirements 5.3):
-
-    * **Node guard** — when the graph exceeds 10,000 nodes a
-      :class:`GraphSizeWarning` is emitted and BFS expansion stops
-      immediately.
-    * **Edge guard** — when edges exceed 50,000, edges below the 10th
-      percentile of ``amount`` values are pruned before returning.
-
-    After traversal :func:`_compute_node_metrics` is called in-place so
-    every node carries the metrics required by Requirement 5.4.
+        Populated directed graph with per-node metrics.
     """
-    # Clamp max_hops to the hard limit.
     max_hops = max(1, min(max_hops, MAX_HOPS_HARD_LIMIT))
+    deadline = time.monotonic() + deadline_seconds
 
     G: nx.DiGraph = nx.DiGraph()
-
-    # Seed node must exist in the graph even if it has no transactions.
     G.add_node(seed_address, chain=chain)
 
     frontier: set[str] = {seed_address}
-    visited: set[str] = set()
-    size_limit_reached = False
+    visited:  set[str] = set()
 
-    for _hop in range(max_hops):
+    for hop in range(max_hops):
         if not frontier:
+            break
+
+        # ── Deadline check ────────────────────────────────────────────────
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            warnings.warn(
+                f"build_graph: deadline hit after hop {hop} "
+                f"(nodes={G.number_of_nodes()}, target={min_nodes}). "
+                "Returning partial graph.",
+                DeadlineWarning,
+                stacklevel=2,
+            )
+            break
+
+        # ── Node limit guard ──────────────────────────────────────────────
+        if G.number_of_nodes() >= NODE_COUNT_LIMIT:
+            warnings.warn(
+                f"build_graph: node limit {NODE_COUNT_LIMIT} reached at hop {hop}.",
+                GraphSizeWarning,
+                stacklevel=2,
+            )
             break
 
         next_frontier: set[str] = set()
 
         for addr in frontier - visited:
-            # Memory guard: stop expansion when node count exceeds threshold.
-            if G.number_of_nodes() >= NODE_COUNT_LIMIT:
+            # Per-address deadline check so we don't overshoot on a slow API call
+            if time.monotonic() >= deadline:
                 warnings.warn(
-                    f"Graph reached {G.number_of_nodes()} nodes "
-                    f"(limit {NODE_COUNT_LIMIT}). Stopping expansion.",
-                    GraphSizeWarning,
+                    f"build_graph: deadline hit mid-hop {hop} while processing {addr[:10]}…",
+                    DeadlineWarning,
                     stacklevel=2,
                 )
-                size_limit_reached = True
+                frontier = set()  # abort outer loop too
+                break
+
+            if G.number_of_nodes() >= NODE_COUNT_LIMIT:
                 break
 
             txs = await adapter.get_transactions(addr)
 
             for tx in txs:
-                from_addr: str = tx.from_addr
-                to_addr: str = tx.to_addr
+                s, t = tx.from_addr, tx.to_addr
+                if not s or not t:
+                    continue
+                if s not in G:
+                    G.add_node(s, chain=chain)
+                if t not in G:
+                    G.add_node(t, chain=chain)
 
-                # Ensure nodes carry chain attribute (Req 5.1).
-                if from_addr not in G:
-                    G.add_node(from_addr, chain=chain)
-                if to_addr not in G:
-                    G.add_node(to_addr, chain=chain)
-
-                # Edge attributes (Req 5.1, 5.2).
-                is_bridge: bool = to_addr in KNOWN_BRIDGE_CONTRACTS
-                edge_attrs = {
-                    "tx_hash": tx.tx_hash,
-                    "amount": tx.amount,
-                    "fee": tx.fee,
-                    "timestamp": tx.timestamp,
-                    "chain": chain,
-                    "is_bridge": is_bridge,
-                    "bridge_protocol": tx.bridge_protocol if is_bridge else None,
-                }
-
-                # Allow multiple parallel edges between the same pair of nodes
-                # (different tx_hashes).  NetworkX DiGraph keeps only one edge
-                # per (u, v) pair; we use the last write wins for simplicity.
-                # If multi-edge support is desired, switch to MultiDiGraph.
-                G.add_edge(from_addr, to_addr, **edge_attrs)
-
-                next_frontier.add(to_addr)
+                is_bridge = t in KNOWN_BRIDGE_CONTRACTS
+                G.add_edge(s, t,
+                    tx_hash=tx.tx_hash,
+                    amount=float(tx.amount),
+                    fee=float(tx.fee),
+                    timestamp=tx.timestamp.isoformat() if hasattr(tx.timestamp, "isoformat") else str(tx.timestamp),
+                    chain=chain,
+                    is_bridge=is_bridge,
+                    bridge_protocol=tx.bridge_protocol if is_bridge else None,
+                )
+                next_frontier.add(t)
 
             visited.add(addr)
 
-        if size_limit_reached:
-            break
-
         frontier = next_frontier
 
-    # Edge memory guard: prune low-value edges if threshold exceeded (Req 5.3).
+        # ── min_nodes check — stop early if we have enough ────────────────
+        n = G.number_of_nodes()
+        if n >= min_nodes:
+            break
+
+    # ── Post-loop warnings ────────────────────────────────────────────────
+    final_n = G.number_of_nodes()
+    if final_n < min_nodes and time.monotonic() < deadline:
+        warnings.warn(
+            f"build_graph: exhausted all hops/frontiers with only {final_n} nodes "
+            f"(target {min_nodes}). The wallet may genuinely have few counterparties.",
+            MinNodesWarning,
+            stacklevel=2,
+        )
+
+    # ── Edge pruning ──────────────────────────────────────────────────────
     if G.number_of_edges() > EDGE_COUNT_PRUNE_THRESHOLD:
         _prune_low_value_edges(G, percentile=PRUNE_PERCENTILE)
 
-    # Compute per-node metrics (Req 5.4).
+    # ── Node metrics ──────────────────────────────────────────────────────
     _compute_node_metrics(G)
 
+    return G
+
+
+async def build_graph_expand(
+    G: nx.DiGraph,
+    chain: str,
+    adapter: "BlockchainAdapter",
+    *,
+    deadline_seconds: float = 120.0,
+) -> nx.DiGraph:
+    """Expand an existing graph by one additional BFS hop from leaf nodes.
+
+    Leaf nodes = nodes with ``out_degree == 0`` inside *G* (no outgoing edges
+    explored yet).  This lets the UI trigger deeper investigation of a
+    completed graph on demand without re-running the full trace.
+
+    Parameters
+    ----------
+    G:
+        Existing graph to expand **in-place**.
+    chain, adapter:
+        Same chain/adapter as the original trace.
+    deadline_seconds:
+        Wall-clock budget for this expansion step.  Default 120 s (2 min).
+
+    Returns
+    -------
+    nx.DiGraph
+        The same *G* object, expanded in-place, with metrics recomputed.
+    """
+    deadline = time.monotonic() + deadline_seconds
+
+    # Leaves: nodes that have no outgoing edges in the current graph
+    leaves = {n for n in G.nodes() if G.out_degree(n) == 0}
+
+    if not leaves:
+        return G  # nothing to expand
+
+    for addr in leaves:
+        if time.monotonic() >= deadline:
+            break
+        if G.number_of_nodes() >= NODE_COUNT_LIMIT:
+            break
+
+        txs = await adapter.get_transactions(addr)
+        for tx in txs:
+            s, t = tx.from_addr, tx.to_addr
+            if not s or not t:
+                continue
+            if s not in G:
+                G.add_node(s, chain=chain)
+            if t not in G:
+                G.add_node(t, chain=chain)
+            if not G.has_edge(s, t):
+                is_bridge = t in KNOWN_BRIDGE_CONTRACTS
+                G.add_edge(s, t,
+                    tx_hash=tx.tx_hash,
+                    amount=float(tx.amount),
+                    fee=float(tx.fee),
+                    timestamp=tx.timestamp.isoformat() if hasattr(tx.timestamp, "isoformat") else str(tx.timestamp),
+                    chain=chain,
+                    is_bridge=is_bridge,
+                    bridge_protocol=tx.bridge_protocol if is_bridge else None,
+                )
+
+    if G.number_of_edges() > EDGE_COUNT_PRUNE_THRESHOLD:
+        _prune_low_value_edges(G, percentile=PRUNE_PERCENTILE)
+
+    _compute_node_metrics(G)
     return G
 
 
@@ -180,43 +297,18 @@ async def build_graph(
 
 
 def _compute_node_metrics(G: nx.DiGraph) -> None:
-    """Compute and attach per-node metrics as node attributes in-place.
-
-    Sets the following attributes on every node in *G*:
-
-    * ``in_degree``    — number of incoming edges (int)
-    * ``out_degree``   — number of outgoing edges (int)
-    * ``total_inflow`` — sum of ``amount`` values for incoming edges (float)
-    * ``total_outflow``— sum of ``amount`` values for outgoing edges (float)
-    * ``first_seen``   — earliest ``timestamp`` across incident edges (ISO str)
-    * ``last_seen``    — latest  ``timestamp`` across incident edges (ISO str)
-    * ``entity_type``  — classification label, default ``"unknown"`` (str)
-
-    Requirements: 5.4
-    """
+    """Annotate every node with degree, flow, and timestamp metrics in-place."""
     for node in G.nodes():
-        in_edges = list(G.in_edges(node, data=True))
+        in_edges  = list(G.in_edges(node,  data=True))
         out_edges = list(G.out_edges(node, data=True))
 
-        # Degree counts.
-        in_deg: int = len(in_edges)
-        out_deg: int = len(out_edges)
+        total_inflow: float = float(sum(
+            Decimal(str(d.get("amount", 0))) for _, _, d in in_edges
+        ))
+        total_outflow: float = float(sum(
+            Decimal(str(d.get("amount", 0))) for _, _, d in out_edges
+        ))
 
-        # Inflow / outflow aggregation — amounts may be Decimal or float.
-        total_inflow: float = float(
-            sum(
-                Decimal(str(data.get("amount", 0)))
-                for _, _, data in in_edges
-            )
-        )
-        total_outflow: float = float(
-            sum(
-                Decimal(str(data.get("amount", 0)))
-                for _, _, data in out_edges
-            )
-        )
-
-        # Timestamp range across all incident edges.
         all_timestamps: list[datetime] = []
         for _, _, data in in_edges + out_edges:
             ts = data.get("timestamp")
@@ -224,50 +316,29 @@ def _compute_node_metrics(G: nx.DiGraph) -> None:
                 if isinstance(ts, datetime):
                     all_timestamps.append(ts)
                 else:
-                    # Accept ISO strings as a fallback.
                     try:
                         all_timestamps.append(datetime.fromisoformat(str(ts)))
                     except (ValueError, TypeError):
                         pass
 
-        first_seen: str | None = None
-        last_seen: str | None = None
-        if all_timestamps:
-            first_seen = min(all_timestamps).isoformat()
-            last_seen = max(all_timestamps).isoformat()
+        first_seen: str | None = min(all_timestamps).isoformat() if all_timestamps else None
+        last_seen:  str | None = max(all_timestamps).isoformat() if all_timestamps else None
 
-        # Preserve existing entity_type if already set (e.g. by attribution).
         existing_entity_type: str = G.nodes[node].get("entity_type", "unknown")
 
-        G.nodes[node].update(
-            {
-                "in_degree": in_deg,
-                "out_degree": out_deg,
-                "total_inflow": total_inflow,
-                "total_outflow": total_outflow,
-                "first_seen": first_seen,
-                "last_seen": last_seen,
-                "entity_type": existing_entity_type,
-            }
-        )
+        G.nodes[node].update({
+            "in_degree":     len(in_edges),
+            "out_degree":    len(out_edges),
+            "total_inflow":  total_inflow,
+            "total_outflow": total_outflow,
+            "first_seen":    first_seen,
+            "last_seen":     last_seen,
+            "entity_type":   existing_entity_type,
+        })
 
 
 def _prune_low_value_edges(G: nx.DiGraph, percentile: float = 10.0) -> None:
-    """Remove edges below *percentile* of the distribution of edge amounts.
-
-    This is a memory-management step invoked when the graph exceeds
-    ``EDGE_COUNT_PRUNE_THRESHOLD`` edges (Req 5.3).  Edges with ``amount``
-    attribute missing or zero are treated as zero-value and are candidates for
-    pruning.
-
-    Parameters
-    ----------
-    G:
-        The directed graph to prune in-place.
-    percentile:
-        Edges whose ``amount`` falls below this percentile of all edge amounts
-        are removed.  Defaults to ``10.0`` (10th percentile).
-    """
+    """Remove edges below *percentile* of the amount distribution."""
     amounts: list[float] = []
     for _u, _v, data in G.edges(data=True):
         try:
@@ -279,11 +350,9 @@ def _prune_low_value_edges(G: nx.DiGraph, percentile: float = 10.0) -> None:
         return
 
     threshold: float = float(np.percentile(amounts, percentile))
-
     edges_to_remove = [
         (u, v)
         for u, v, data in G.edges(data=True)
         if float(data.get("amount", 0)) < threshold
     ]
-
     G.remove_edges_from(edges_to_remove)

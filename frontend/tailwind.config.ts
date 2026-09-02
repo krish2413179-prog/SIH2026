@@ -22,8 +22,12 @@ const config: Config = {
         'risk-high': '#EF4444',       // red
       },
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
-        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+        sans:    ['Cantata One', 'ui-serif', 'Georgia', 'serif'],
+        cantata: ['Cantata One', 'ui-serif', 'Georgia', 'serif'],
+        grace:   ['Covered By Your Grace', 'cursive'],
+        oi:      ['Oi', 'ui-serif', 'Georgia', 'serif'],
+        agu:     ['Agu Display', 'ui-serif', 'Georgia', 'serif'],
+        mono:    ['JetBrains Mono', 'ui-monospace', 'monospace'],
       },
       keyframes: {
         'fade-in-up': {

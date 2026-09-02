@@ -1,5 +1,9 @@
 """EtherscanAdapter — ETH blockchain data adapter using Etherscan API.
 
+Fetches both native ETH transactions (txlist) and ERC-20 token transfers
+(tokentx), merging and deduplicating by tx_hash so the graph reflects the
+full on-chain activity of each address.
+
 Requirements: 4.1, 4.2
 """
 
@@ -27,7 +31,6 @@ class EtherscanAdapter(BlockchainAdapter):
     _base_url: str = _BASE_URL
 
     def _api_key(self) -> str:
-        """Return the Etherscan API key from settings (empty string if not set)."""
         try:
             from app.config import get_settings
             return get_settings().etherscan_api_key
@@ -37,22 +40,55 @@ class EtherscanAdapter(BlockchainAdapter):
     # Etherscan V2 chain IDs
     _chain_id: int = 1  # ETH mainnet
 
+    # ------------------------------------------------------------------ #
+    # Native ETH transactions                                              #
+    # ------------------------------------------------------------------ #
+
     async def get_transactions(
         self,
         address: str,
         *,
         page: int = 1,
-        page_size: int = 100,
+        page_size: int = 500,
     ) -> list[RawTransaction]:
-        """Return paginated transactions for an ETH address."""
+        """Return native ETH transactions + ERC-20 token transfers, merged and
+        deduped by tx_hash.  Token transfers with the same hash as a native tx
+        replace the native record so the token amount (not the ETH value) is used.
+        """
+        native = await self._get_native_transactions(address, page=page, page_size=page_size)
+        tokens = await self._get_token_transactions(address, page=page, page_size=page_size)
+
+        # Merge: build dict keyed by tx_hash; token txs take priority so that
+        # contract calls that move ERC-20 tokens show the token amount instead of 0 ETH.
+        merged: dict[str, RawTransaction] = {}
+        for tx in native:
+            merged[tx.tx_hash] = tx
+        for tx in tokens:
+            # Token transfers may share a hash with a native tx (the gas tx).
+            # Keep the token record; if multiple token transfers share a hash
+            # (e.g. swap routing), we pick the one with the largest amount.
+            existing = merged.get(tx.tx_hash)
+            if existing is None or tx.amount > existing.amount:
+                merged[tx.tx_hash] = tx
+
+        return list(merged.values())
+
+    async def _get_native_transactions(
+        self,
+        address: str,
+        *,
+        page: int = 1,
+        page_size: int = 500,
+    ) -> list[RawTransaction]:
+        """Fetch standard ETH transfers via action=txlist."""
         params: dict = {
             "chainid": self._chain_id,
-            "module": "account",
-            "action": "txlist",
+            "module":  "account",
+            "action":  "txlist",
             "address": address,
-            "page": page,
-            "offset": page_size,
-            "sort": "desc",
+            "page":    page,
+            "offset":  page_size,
+            "sort":    "desc",
         }
         api_key = self._api_key()
         if api_key:
@@ -61,75 +97,142 @@ class EtherscanAdapter(BlockchainAdapter):
         try:
             data = await self._fetch_with_retry(self._base_url, params=params)
         except DataUnavailableError:
-            logger.warning("%s: could not fetch transactions for %s", self.chain, address)
+            logger.warning("%s: could not fetch native txs for %s", self.chain, address)
             return []
 
-        status = data.get("status", "0")
-        if status != "1":
-            # status "0" can mean no transactions or an API error
-            message = data.get("message", "")
-            result = data.get("result", [])
-            if message == "No transactions found" or result == []:
+        if data.get("status") != "1":
+            msg = data.get("message", "")
+            if msg == "No transactions found" or data.get("result") == []:
                 return []
-            logger.warning("%s: unexpected API status %s — %s", self.chain, status, message)
+            logger.warning("%s native txlist status=%s msg=%s", self.chain, data.get("status"), msg)
             return []
 
         result = data.get("result") or []
         if not isinstance(result, list):
             return []
 
-        transactions: list[RawTransaction] = []
+        out: list[RawTransaction] = []
         for tx in result:
             try:
                 tx_hash = tx.get("hash", "")
                 if not tx_hash:
                     continue
-
                 from_addr = tx.get("from", "")
-                to_addr = tx.get("to", "")
-
-                # value is in wei
-                raw_value = tx.get("value", "0")
-                amount = Decimal(str(raw_value)) / Decimal("1e18")
-
-                # fee = gasUsed * gasPrice (both in wei)
-                gas_used = int(tx.get("gasUsed", 0))
+                to_addr   = tx.get("to",   "")
+                if not from_addr or not to_addr:
+                    continue
+                amount    = Decimal(str(tx.get("value", "0"))) / Decimal("1e18")
+                gas_used  = int(tx.get("gasUsed",  0))
                 gas_price = int(tx.get("gasPrice", 0))
-                fee = Decimal(str(gas_used * gas_price)) / Decimal("1e18")
+                fee       = Decimal(str(gas_used * gas_price)) / Decimal("1e18")
+                timestamp = datetime.fromtimestamp(int(tx.get("timeStamp", "0")), tz=timezone.utc)
+                block_height_raw = tx.get("blockNumber")
+                block_height: int | None = int(block_height_raw) if block_height_raw else None
+                out.append(RawTransaction(
+                    tx_hash=tx_hash, from_addr=from_addr, to_addr=to_addr,
+                    amount=amount, fee=fee, timestamp=timestamp,
+                    chain=self.chain, block_height=block_height,
+                ))
+            except Exception:  # noqa: BLE001
+                logger.debug("%s: failed to parse native tx %s", self.chain, tx.get("hash", "?"), exc_info=True)
+        return out
 
-                raw_ts = tx.get("timeStamp", "0")
-                timestamp = datetime.fromtimestamp(int(raw_ts), tz=timezone.utc)
+    # ------------------------------------------------------------------ #
+    # ERC-20 token transfers                                               #
+    # ------------------------------------------------------------------ #
 
+    async def _get_token_transactions(
+        self,
+        address: str,
+        *,
+        page: int = 1,
+        page_size: int = 500,
+    ) -> list[RawTransaction]:
+        """Fetch ERC-20 token transfers via action=tokentx.
+
+        Token amounts are normalised to a human-readable decimal using the
+        token's ``tokenDecimal`` field returned by the API.  The tx_hash is
+        preserved so these can be correlated / merged with native txs.
+        """
+        params: dict = {
+            "chainid": self._chain_id,
+            "module":  "account",
+            "action":  "tokentx",
+            "address": address,
+            "page":    page,
+            "offset":  page_size,
+            "sort":    "desc",
+        }
+        api_key = self._api_key()
+        if api_key:
+            params["apikey"] = api_key
+
+        try:
+            data = await self._fetch_with_retry(self._base_url, params=params)
+        except DataUnavailableError:
+            logger.debug("%s: could not fetch token txs for %s", self.chain, address)
+            return []
+
+        if data.get("status") != "1":
+            msg = data.get("message", "")
+            if msg in ("No transactions found", "No token transfers found") or data.get("result") == []:
+                return []
+            # Log at debug — many wallets have no token transfers at all
+            logger.debug("%s tokentx status=%s msg=%s", self.chain, data.get("status"), msg)
+            return []
+
+        result = data.get("result") or []
+        if not isinstance(result, list):
+            return []
+
+        out: list[RawTransaction] = []
+        for tx in result:
+            try:
+                tx_hash   = tx.get("hash", "")
+                if not tx_hash:
+                    continue
+                from_addr = tx.get("from", "")
+                to_addr   = tx.get("to",   "")
+                if not from_addr or not to_addr:
+                    continue
+
+                # Normalise token amount using its decimal places
+                raw_value = tx.get("value", "0")
+                decimals  = int(tx.get("tokenDecimal", "18") or "18")
+                try:
+                    amount = Decimal(str(raw_value)) / Decimal(10 ** decimals)
+                except Exception:  # noqa: BLE001
+                    amount = Decimal(0)
+
+                # Fee is denominated in ETH regardless of token
+                gas_used  = int(tx.get("gasUsed",  0))
+                gas_price = int(tx.get("gasPrice", 0))
+                fee       = Decimal(str(gas_used * gas_price)) / Decimal("1e18")
+
+                timestamp = datetime.fromtimestamp(int(tx.get("timeStamp", "0")), tz=timezone.utc)
                 block_height_raw = tx.get("blockNumber")
                 block_height: int | None = int(block_height_raw) if block_height_raw else None
 
-                transactions.append(
-                    RawTransaction(
-                        tx_hash=tx_hash,
-                        from_addr=from_addr,
-                        to_addr=to_addr,
-                        amount=amount,
-                        fee=fee,
-                        timestamp=timestamp,
-                        chain=self.chain,
-                        block_height=block_height,
-                    )
-                )
+                out.append(RawTransaction(
+                    tx_hash=tx_hash, from_addr=from_addr, to_addr=to_addr,
+                    amount=amount, fee=fee, timestamp=timestamp,
+                    chain=self.chain, block_height=block_height,
+                ))
             except Exception:  # noqa: BLE001
-                logger.debug(
-                    "%s: failed to parse tx %s", self.chain, tx.get("hash", "<unknown>"), exc_info=True
-                )
-                continue
+                logger.debug("%s: failed to parse token tx %s", self.chain, tx.get("hash", "?"), exc_info=True)
+        return out
 
-        return transactions
+    # ------------------------------------------------------------------ #
+    # Address info                                                         #
+    # ------------------------------------------------------------------ #
 
     async def get_address_info(self, address: str) -> AddressInfo:
         """Return summary info for an ETH address."""
         params: dict = {
-            "module": "account",
-            "action": "balance",
+            "module":  "account",
+            "action":  "balance",
             "address": address,
-            "tag": "latest",
+            "tag":     "latest",
         }
         api_key = self._api_key()
         if api_key:
@@ -143,10 +246,6 @@ class EtherscanAdapter(BlockchainAdapter):
             balance = Decimal(0)
 
         return AddressInfo(
-            address=address,
-            chain=self.chain,
-            balance=balance,
-            tx_count=0,  # Etherscan balance endpoint does not return tx_count
-            first_seen=None,
-            last_seen=None,
+            address=address, chain=self.chain, balance=balance,
+            tx_count=0, first_seen=None, last_seen=None,
         )

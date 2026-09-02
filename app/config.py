@@ -56,6 +56,9 @@ class Settings(BaseSettings):
     polygonscan_api_key: str = ""
     solscan_api_key: str = ""
 
+    # ── Gemini LLM ────────────────────────────────────────────
+    gemini_api_key: str = ""
+
     # ── Blockchain cache ──────────────────────────────────────
     blockchain_cache_ttl: int = 1800  # seconds
 
