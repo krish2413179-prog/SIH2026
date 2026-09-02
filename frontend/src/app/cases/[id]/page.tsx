@@ -22,6 +22,10 @@ const RiskPanel = dynamic(
   () => import('@/components/GraphViewer/RiskPanel').then(m => m.RiskPanel ?? m.default),
   { ssr: false }
 );
+const MistralPanel = dynamic(
+  () => import('@/components/GraphViewer/MistralPanel').then(m => m.MistralPanel ?? m.default),
+  { ssr: false }
+);
 
 const CHAINS = ['BTC', 'ETH', 'TRX', 'BSC', 'SOL', 'MATIC'];
 
@@ -247,6 +251,9 @@ export default function CaseDetailPage() {
               </div>
               <div>
                 <RiskPanel traceId={selectedTraceId} />
+                <div className="mt-4">
+                  <MistralPanel traceId={selectedTraceId} />
+                </div>
               </div>
             </div>
           </section>

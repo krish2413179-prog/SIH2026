@@ -6,6 +6,8 @@ GET  /traces/{trace_id}/graph            — serialised graph JSON
 GET  /traces/{trace_id}/status           — trace job progress + risk fields
 POST /traces/{trace_id}/expand           — queue an expand_graph Celery task
 GET  /traces/{trace_id}/expand/status    — poll expand task result
+POST /traces/{trace_id}/ai-analysis      — Mistral generative fraud analysis
+GET  /traces/{trace_id}/ai-analysis      — return cached Mistral verdict
 
 Requirements: 5.5, 15.4
 """
@@ -250,3 +252,107 @@ async def get_expand_status(
         response["error"] = str(ar.result)
 
     return response
+
+# ---------------------------------------------------------------------------
+# POST /traces/{trace_id}/ai-analysis   — run Mistral generative analysis
+# GET  /traces/{trace_id}/ai-analysis   — return cached verdict
+# ---------------------------------------------------------------------------
+
+
+def _verdict_to_dict(v: "Any") -> dict[str, Any]:
+    """Serialise a MistralVerdict dataclass to a plain dict."""
+    return {
+        "is_fraud":        v.is_fraud,
+        "confidence":      v.confidence,
+        "refined_score":   v.refined_score,
+        "verdict_label":   v.verdict_label,
+        "crime_type":      v.crime_type,
+        "summary":         v.summary,
+        "evidence_chain":  v.evidence_chain,
+        "missing_data":    v.missing_data,
+        "recommendations": v.recommendations,
+        "prompt_tier":     v.prompt_tier,
+    }
+
+
+@router.post(
+    "/{trace_id}/ai-analysis",
+    status_code=status.HTTP_200_OK,
+    summary="Run Mistral generative fraud analysis for a trace",
+    description=(
+        "Calls Mistral AI with a tier-appropriate prompt (low/ambiguous/high-risk) "
+        "based on the existing rule-based risk score and the full graph metrics. "
+        "Returns a structured fraud verdict with refined score, crime type, "
+        "evidence chain, and actionable recommendations. Results are cached "
+        "in-process for the lifetime of the worker."
+    ),
+)
+async def run_ai_analysis(
+    trace_id:     uuid.UUID,
+    current_user: Annotated[User, Depends(require_investigator)],
+    db:           Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    # Load TraceJob for wallet address + chain + rule score
+    job_result = await db.execute(select(TraceJob).where(TraceJob.id == trace_id))
+    job = job_result.scalars().first()
+    if job is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"TraceJob {trace_id} not found")
+
+    # Load persisted graph
+    graph_result = await db.execute(select(TraceGraph).where(TraceGraph.trace_id == trace_id))
+    graph_record = graph_result.scalars().first()
+    if graph_record is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"No graph found for trace_id {trace_id} — run the trace first")
+
+    # Reconstruct nx.DiGraph from stored JSON
+    from networkx.readwrite import json_graph as jg
+    import networkx as nx
+    try:
+        G: nx.DiGraph = jg.node_link_graph(
+            graph_record.graph_data,
+            directed=True,
+            multigraph=False,
+        )
+    except Exception:
+        G = nx.DiGraph()
+
+    rule_score = int(job.risk_score or 50)
+
+    from app.risk.mistral_analyst import analyse_trace, invalidate_cache
+    invalidate_cache(str(trace_id))
+
+    verdict = await analyse_trace(
+        trace_id=str(trace_id),
+        wallet=job.wallet_address,
+        chain=job.chain,
+        G=G,
+        rule_score=rule_score,
+    )
+
+    return {
+        "trace_id": str(trace_id),
+        "wallet":   job.wallet_address,
+        "chain":    job.chain,
+        "rule_score": rule_score,
+        **_verdict_to_dict(verdict),
+    }
+
+
+@router.get(
+    "/{trace_id}/ai-analysis",
+    summary="Return cached Mistral fraud verdict (no new API call)",
+)
+async def get_ai_analysis(
+    trace_id:     uuid.UUID,
+    current_user: Annotated[User, Depends(require_investigator)],
+) -> dict[str, Any]:
+    from app.risk.mistral_analyst import get_cached
+    verdict = get_cached(str(trace_id))
+    if verdict is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No cached analysis — POST to /ai-analysis first",
+        )
+    return {"trace_id": str(trace_id), **_verdict_to_dict(verdict)}

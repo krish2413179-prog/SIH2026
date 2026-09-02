@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     # ── Gemini LLM ────────────────────────────────────────────
     gemini_api_key: str = ""
 
+    # ── Mistral AI ────────────────────────────────────────────
+    mistral_api_key: str = ""
+
     # ── Blockchain cache ──────────────────────────────────────
     blockchain_cache_ttl: int = 1800  # seconds
 
