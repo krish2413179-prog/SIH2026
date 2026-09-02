@@ -15,6 +15,7 @@
     "autoprefixer": "10.4.19",
     "axios": "1.7.2",
     "clsx": "2.1.1",
+    "cobe": "^2.0.1",
     "cytoscape": "3.29.2",
     "cytoscape-cose-bilkent": "^4.1.0",
     "cytoscape-dagre": "^4.0.1",

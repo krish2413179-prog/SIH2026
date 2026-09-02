@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
-import { ArrowRight, Shield, Activity, Search, Lock, Zap, Globe } from 'lucide-react';
+import { ArrowRight, Shield, Activity, Search, Lock, Zap, Globe as GlobeIcon } from 'lucide-react';
 
 const AeroShards = dynamic(() => import('@/components/ReactBits/AeroShards'), { ssr: false });
 const DepthText  = dynamic(() => import('@/components/ReactBits/DepthText'),  { ssr: false });
 const CardSwap   = dynamic(() => import('@/components/ReactBits/CardSwap').then(m => m.default), { ssr: false });
 const Card       = dynamic(() => import('@/components/ReactBits/CardSwap').then(m => m.Card),    { ssr: false });
+const Globe      = dynamic(() => import('@/components/Globe'), { ssr: false });
 
 const CARDS = [
   {
@@ -51,7 +52,7 @@ const CARDS = [
     body:   'Supervisor sign-off + court-ready PDF reports',
   },
   {
-    icon:   Globe,
+    icon:   GlobeIcon,
     label:  'Multi-chain Graph',
     accent: '#06B6D4',
     blob:   'radial-gradient(ellipse at 55% 60%, #164e63 0%, #06b6d4 50%, #67e8f9 75%, transparent 100%)',
@@ -83,6 +84,22 @@ export default function LandingPage() {
       </div>
       <div className="absolute inset-0 z-0 pointer-events-none"
         style={{ background: 'radial-gradient(ellipse 90% 55% at 50% 110%, #09090f 55%, transparent 100%)' }} />
+
+      {/* ── Globe — sits in the right half as an interactive background ── */}
+      <div
+        className="absolute z-[1] hidden lg:block"
+        style={{
+          right:     '-8%',
+          top:       '50%',
+          transform: 'translateY(-50%)',
+          width:     '58vw',
+          height:    '58vw',
+          maxWidth:  860,
+          maxHeight: 860,
+        }}
+      >
+        <Globe />
+      </div>
 
       {/* ── Content ── */}
       <div className="relative z-10 flex flex-col min-h-screen">
