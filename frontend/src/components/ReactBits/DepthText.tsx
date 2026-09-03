@@ -1,6 +1,4 @@
-'use client';
-
-import { useEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import './DepthText.css';
 
 const MAX_LAYERS = 64;
