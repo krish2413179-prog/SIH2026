@@ -3,52 +3,16 @@
 @tailwind utilities;
 
 @layer base {
-  @font-face {
-    font-family: 'Agu Display';
-    src: url('/fonts/AguDisplay-Regular-VariableFont_MORF.ttf') format('truetype');
-    font-weight: 100 900;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Oi';
-    src: url('/fonts/Oi-Regular.ttf') format('truetype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Cantata One';
-    src: url('/fonts/CantataOne-Regular.ttf') format('truetype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-
-  @font-face {
-    font-family: 'Covered By Your Grace';
-    src: url('/fonts/CoveredByYourGrace-Regular.ttf') format('truetype');
-    font-weight: 400;
-    font-style: normal;
-    font-display: swap;
-  }
-
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-    --font-cantata: 'Cantata One', ui-serif, Georgia, serif;
-    --font-grace: 'Covered By Your Grace', cursive;
+    --background: 0 0% 0%;
+    --foreground: 0 0% 100%;
   }
 
-  html {
-    font-family: 'Cantata One', ui-serif, Georgia, serif;
-  }
-
-  body {
-    @apply bg-gray-50 text-gray-900;
-    font-family: 'Cantata One', ui-serif, Georgia, serif;
+  html, body {
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+      'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 }
 
@@ -84,21 +48,4 @@
     @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
            bg-red-100 text-red-800;
   }
-}
-
-/* Utility classes for explicit font usage */
-.font-grace {
-  font-family: 'Covered By Your Grace', cursive !important;
-}
-
-.font-cantata {
-  font-family: 'Cantata One', ui-serif, Georgia, serif !important;
-}
-
-.font-oi {
-  font-family: 'Oi', ui-serif, Georgia, serif !important;
-}
-
-.font-agu {
-  font-family: 'Agu Display', ui-serif, Georgia, serif !important;
 }

@@ -22,7 +22,8 @@ import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   Download, Image as ImageIcon, Loader2, AlertCircle,
   X, Search, ExternalLink, Copy, Check, GitBranch,
-  ArrowRight, Eye, EyeOff, SlidersHorizontal, Route, GitMerge,
+  ArrowRight, Eye, EyeOff, Route, GitMerge,
+  ArrowDownToLine, ArrowUpFromLine, Coins, RefreshCw, Building2, Globe,
 } from 'lucide-react';
 import api from '@/lib/api';
 
@@ -650,9 +651,13 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
   const [progressive, setProgressive] = useState(false);
   const [nodePopup,   setNodePopup]   = useState<NodePopup | null>(null);
 
-  // Importance filter
-  const [threshold,    setThreshold]    = useState(0.3);  // 30% default — filters noise on large graphs
-  const [showAllNodes, setShowAllNodes] = useState(false);
+  // Category filter — replaces importance threshold
+  type FilterCategory = 'all' | 'incoming' | 'outgoing' | 'tokens' | 'dex' | 'exchanges';
+  const [filterCategory, setFilterCategory] = useState<FilterCategory>('all');
+
+  // Keep these for backward compat with visibleCount
+  const threshold    = 0;
+  const showAllNodes = true;
 
   // Exchange path
   const [pathInfo,  setPathInfo]  = useState<PathInfo | null>(null);
@@ -679,12 +684,9 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
   const { visibleCount, totalCount } = useMemo(() => {
     if (!graphData) return { visibleCount: 0, totalCount: 0 };
     const total = (graphData.nodes ?? []).length;
-    if (showAllNodes) return { visibleCount: total, totalCount: total };
-    const visible = (graphData.nodes ?? []).filter(
-      (n) => (importance[String(n.id)] ?? 0) >= threshold,
-    ).length;
-    return { visibleCount: visible, totalCount: total };
-  }, [graphData, importance, threshold, showAllNodes]);
+    return { visibleCount: total, totalCount: total };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graphData]);
 
   // ── Fetch graph ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -700,24 +702,8 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
           setProgressive(n > PROGRESSIVE_THRESHOLD);
           const first = res.data.nodes?.[0];
           if (first) setSeedAddr(String(first.id));
-
-          // Auto-calibrate threshold so large graphs start showing ~25-35 nodes.
-          // Auto-calibrate threshold for large graphs.
-          // Target: show top 50 nodes or top 20%, whichever is more.
-          // For graphs ≤80 nodes always show everything.
-          // Cap threshold at 0.15 so we never accidentally hide all nodes.
-          if (n > 80) {
-            const imp = computeImportance(res.data);
-            const scores = Object.values(imp).sort((a, b) => b - a);
-            const targetVisible = Math.max(50, Math.ceil(n * 0.20));
-            const cutIdx = Math.min(targetVisible, scores.length - 1);
-            const cutScore = scores[cutIdx] ?? 0;
-            setThreshold(Math.min(0.15, Math.max(0.02, cutScore)));
-            setShowAllNodes(false);
-          } else {
-            setThreshold(0);
-            setShowAllNodes(true);
-          }
+          // Reset category filter to 'all' when new trace data loads
+          setFilterCategory('all');
         }
       })
       .catch((err) => {
@@ -819,31 +805,89 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graphData, traceId]);
 
-  // ── Apply importance filter reactively when slider changes ───────────────
+  // ── DEX / token router address patterns ─────────────────────────────────
+  const DEX_PATTERNS = [
+    '0x7a250d5630b4cf539739df2c5dacb4c659f2488d', // Uniswap V2 Router
+    '0xe592427a0aece92de3edee1f18e0157c05861564', // Uniswap V3 Router
+    '0x3fc91a3afd70395cd496c647d5a6cc9d4b2b7fad', // Uniswap Universal Router
+    '0xdef1c0ded9bec7f1a1670819833240f027b25eff', // 0x Exchange
+    '0xd9e1ce17f2641f24ae83637ab66a2cca9c378b9f', // Sushiswap Router
+    '0x1111111254fb6c44bac0bed2854e76f90643097d', // 1inch
+  ];
+  const TOKEN_TYPES = new Set(['erc20', 'token', 'stablecoin', 'nft', 'defi']);
+  const EXCHANGE_FILTER_TYPES = new Set(['cex', 'vasp', 'exchange', 'mixer', 'bridge', 'flagged']);
+
+  // ── Apply category filter reactively ────────────────────────────────────
   useEffect(() => {
     const cy = cyRef.current;
-    if (!cy) return;
-    if (showAllNodes) {
-      cy.elements().removeClass('filtered-out');
-      return;
+    if (!cy || !graphData) return;
+
+    // Always start clean
+    cy.elements().removeClass('filtered-out');
+
+    if (filterCategory === 'all') return;
+
+    const links = graphData.links ?? [];
+
+    if (filterCategory === 'incoming') {
+      // Show only edges flowing INTO the seed wallet + their source nodes
+      const incomingSourceIds = new Set<string>();
+      links.forEach(l => {
+        if (String(l.target).toLowerCase() === seedAddr.toLowerCase()) {
+          incomingSourceIds.add(String(l.source));
+        }
+      });
+      cy.nodes().forEach((node: cytoscape.NodeSingular) => {
+        const id = (node.data('full_address') ?? node.id()).toLowerCase();
+        const isSeed = id === seedAddr.toLowerCase();
+        if (!isSeed && !incomingSourceIds.has(id)) node.addClass('filtered-out');
+      });
+    } else if (filterCategory === 'outgoing') {
+      // Show only edges flowing OUT of the seed wallet + their target nodes
+      const outgoingTargetIds = new Set<string>();
+      links.forEach(l => {
+        if (String(l.source).toLowerCase() === seedAddr.toLowerCase()) {
+          outgoingTargetIds.add(String(l.target));
+        }
+      });
+      cy.nodes().forEach((node: cytoscape.NodeSingular) => {
+        const id = (node.data('full_address') ?? node.id()).toLowerCase();
+        const isSeed = id === seedAddr.toLowerCase();
+        if (!isSeed && !outgoingTargetIds.has(id)) node.addClass('filtered-out');
+      });
+    } else if (filterCategory === 'tokens') {
+      // Show nodes tagged as token/DeFi types
+      cy.nodes().forEach((node: cytoscape.NodeSingular) => {
+        const et = (node.data('entity_type') ?? '').toLowerCase();
+        if (!TOKEN_TYPES.has(et) && node.id() !== seedAddr) node.addClass('filtered-out');
+      });
+    } else if (filterCategory === 'dex') {
+      // Show nodes that are known DEX routers (by address match)
+      cy.nodes().forEach((node: cytoscape.NodeSingular) => {
+        const addr = (node.data('full_address') ?? node.id()).toLowerCase();
+        const isDex = DEX_PATTERNS.some(p => addr === p);
+        if (!isDex && addr !== seedAddr.toLowerCase()) node.addClass('filtered-out');
+      });
+    } else if (filterCategory === 'exchanges') {
+      // Show only exchange/mixer/bridge/VASP tagged nodes
+      cy.nodes().forEach((node: cytoscape.NodeSingular) => {
+        const et = (node.data('entity_type') ?? '').toLowerCase();
+        if (!EXCHANGE_FILTER_TYPES.has(et) && node.id() !== seedAddr) node.addClass('filtered-out');
+      });
     }
-    const seedEl = cy.getElementById(seedAddr);
-    cy.nodes().forEach((node: cytoscape.NodeSingular) => {
-      const imp: number = node.data('importance') ?? 0;
-      const isSeed = node.id() === seedAddr;
-      const connectedToSeed = seedEl.length > 0 && seedEl.neighborhood().has(node);
-      if (imp < threshold && !isSeed && !connectedToSeed) {
-        node.addClass('filtered-out');
-      } else {
-        node.removeClass('filtered-out');
-      }
-    });
+
+    // Hide edges where either endpoint is filtered-out
     cy.edges().forEach((edge: cytoscape.EdgeSingular) => {
       (edge.source().hasClass('filtered-out') || edge.target().hasClass('filtered-out'))
         ? edge.addClass('filtered-out')
         : edge.removeClass('filtered-out');
     });
-  }, [threshold, showAllNodes, seedAddr]);
+
+    // Fit visible elements
+    const visible = cy.elements(':visible').not('.filtered-out');
+    if (visible.length > 0) cy.fit(visible, 60);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterCategory, seedAddr, graphData]);
 
   // ── Init / re-render Cytoscape ────────────────────────────────────────────
   useEffect(() => {
@@ -1027,29 +1071,29 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
               name:        'dagre',
               rankDir:     'LR',
               ranker:      'network-simplex',
-              rankSep:     120,
+              rankSep:     140,
               nodeSep:     80,
-              edgeSep:     20,
-              padding:     40,
-              animate:     true,
-              animationDuration: 400,
-              fit:         false,  // we fit manually after to seed node
+              edgeSep:     30,
+              padding:     50,
+              animate:     false,
+              fit:         true,
             } as cytoscape.LayoutOptions)
           : ({
-              name:            'cose-bilkent',
-              quality:         'default',
-              animate:         elements.length < 150,
-              animationDuration: 400,
-              randomize:       false,
-              nodeRepulsion:   8500,
-              idealEdgeLength: 100,
-              edgeElasticity:  0.45,
-              nestingFactor:   0.1,
+              name:            'cose',
+              animate:         false,
+              randomize:       true,
+              componentSpacing: 100,
+              nodeRepulsion:   (_node: unknown) => 450000,
+              idealEdgeLength: (_edge: unknown) => 100,
+              edgeElasticity:  (_edge: unknown) => 100,
+              nestingFactor:   1.2,
               gravity:         0.25,
-              numIter:         2500,
-              tile:            true,
-              padding:         40,
-              fit:             false,  // we fit manually after
+              numIter:         1000,
+              initialTemp:     1000,
+              coolingFactor:   0.99,
+              minTemp:         1.0,
+              padding:         50,
+              fit:             true,
             } as cytoscape.LayoutOptions),
         wheelSensitivity: 0.3,
         minZoom: 0.05,
@@ -1306,39 +1350,36 @@ export function GraphViewer({ traceId, onTraceWallet }: GraphViewerProps) {
         </div>
       </div>
 
-      {/* ── Importance filter panel ──────────────────────────────── */}
+      {/* ── Transaction Category Filters ───────────────────────────── */}
       <div className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-3">
-        <div className="flex items-center gap-2 mb-2">
-          <SlidersHorizontal className="w-4 h-4 text-blue-400 shrink-0" />
-          <span className="text-sm font-semibold text-gray-200">Importance Threshold</span>
-          <span className="ml-auto text-xs text-blue-300 font-mono font-semibold">{Math.round(threshold * 100)}%</span>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-semibold text-gray-200">Transaction Filters</span>
+          <span className="text-xs text-gray-500">
+            Showing <span className="text-white font-semibold">{visibleCount}</span> of <span className="text-gray-300">{totalCount}</span> wallets
+          </span>
         </div>
-
-        <input
-          type="range" min={0} max={100} step={1}
-          value={Math.round(threshold * 100)}
-          onChange={(e) => { setShowAllNodes(false); setThreshold(Number(e.target.value) / 100); }}
-          disabled={showAllNodes}
-          className="w-full accent-blue-500 disabled:opacity-40 cursor-pointer"
-        />
-
-        <div className="flex items-center justify-between mt-2">
-          <p className="text-xs text-gray-400">
-            Showing{' '}
-            <span className="text-white font-semibold">{visibleCount}</span>
-            {' '}of{' '}
-            <span className="text-gray-300">{totalCount}</span>
-            {' '}wallets
-          </p>
-          <label className="flex items-center gap-1.5 text-xs text-gray-400 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={showAllNodes}
-              onChange={(e) => setShowAllNodes(e.target.checked)}
-              className="accent-blue-500 w-3.5 h-3.5 cursor-pointer"
-            />
-            Show all nodes
-          </label>
+        <div className="flex flex-wrap gap-2">
+          {([
+            { key: 'all',       label: 'All Flows',      Icon: Globe,           color: 'from-blue-600 to-blue-700',     ring: 'ring-blue-500'   },
+            { key: 'incoming',  label: 'Incoming',       Icon: ArrowDownToLine, color: 'from-green-600 to-green-700',   ring: 'ring-green-500'  },
+            { key: 'outgoing',  label: 'Outgoing',       Icon: ArrowUpFromLine, color: 'from-orange-600 to-orange-700', ring: 'ring-orange-500' },
+            { key: 'tokens',    label: 'Token Transfers',Icon: Coins,           color: 'from-purple-600 to-purple-700', ring: 'ring-purple-500' },
+            { key: 'dex',       label: 'DEX / Swaps',    Icon: RefreshCw,       color: 'from-cyan-600 to-cyan-700',     ring: 'ring-cyan-500'   },
+            { key: 'exchanges', label: 'Exchanges',      Icon: Building2,       color: 'from-red-600 to-red-700',       ring: 'ring-red-500'    },
+          ] as { key: string; label: string; Icon: React.ElementType; color: string; ring: string }[]).map(({ key, label, Icon, color, ring }) => (
+            <button
+              key={key}
+              onClick={() => setFilterCategory(key as 'all' | 'incoming' | 'outgoing' | 'tokens' | 'dex' | 'exchanges')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                filterCategory === key
+                  ? `bg-gradient-to-r ${color} text-white shadow-lg ring-1 ${ring} ring-offset-1 ring-offset-gray-800`
+                  : 'bg-gray-700/60 text-gray-300 hover:bg-gray-600/80 hover:text-white'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5 shrink-0" />
+              {label}
+            </button>
+          ))}
         </div>
       </div>
 

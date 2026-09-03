@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     # ── Mistral AI ────────────────────────────────────────────
     mistral_api_key: str = ""
 
+    # ── Nansen (wallet intelligence) ──────────────────────────
+    nansen_api_key: str = ""
+
+    # ── Bitcoin Abuse DB ──────────────────────────────────────
+    bitcoin_abuse_api_key: str = ""
+
+    # ── Intel sync schedule ───────────────────────────────────
+    intel_sync_interval_hours: int = 24
+
     # ── Blockchain cache ──────────────────────────────────────
     blockchain_cache_ttl: int = 1800  # seconds
 

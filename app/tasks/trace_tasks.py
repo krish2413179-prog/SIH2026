@@ -102,6 +102,27 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
                     deadline_seconds=300.0,
                 )
 
+                # ── Intel Tagging & Nearest VASP Identification ──────
+                try:
+                    engine, AsyncSessionLocal = _make_async_engine_session()
+                    async with AsyncSessionLocal() as async_db:
+                        from app.intel.seed_known_addresses import seed_intel_addresses
+                        await seed_intel_addresses(async_db)
+
+                        from app.graph.vasp_finder import find_nearest_vasps
+                        vasp_matches = await find_nearest_vasps(
+                            G=G,
+                            seed_address=job.wallet_address,
+                            chain=job.chain,
+                            trace_id=job.id,
+                            case_id=job.case_id,
+                            db=async_db,
+                        )
+                        logger.info("run_trace: identified %d nearest VASP matches", len(vasp_matches))
+                    await engine.dispose()
+                except Exception:
+                    logger.warning("run_trace: VASP finder step failed — continuing trace", exc_info=True)
+
                 # ── LLM suspicion analysis ──────────────────────────
                 try:
                     from app.risk.llm_analyst import analyse_graph, invalidate_cache
@@ -149,6 +170,45 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
                     final_job.status = "completed"
                     final_job.completed_at = datetime.now(timezone.utc)
                     final_job.estimated_pct = 100.0
+
+                    # ── Compute Risk Score & Band ─────────────────────
+                    try:
+                        from app.risk.scorer import compute_risk_score, classify_risk_band
+                        # Count flagged/high-risk nodes in graph
+                        total_nodes = G.number_of_nodes() or 1
+                        flagged_nodes = sum(
+                            1 for _, attrs in G.nodes(data=True)
+                            if attrs.get("entity_type") in ("sanctioned", "mixer", "darknet", "scam", "ransomware", "flagged")
+                        )
+                        direct_exp = min(1.0, flagged_nodes / total_nodes)
+                        
+                        # Has direct mixer/sanctions interaction?
+                        has_sanctioned = any(
+                            attrs.get("entity_type") in ("sanctioned", "darknet")
+                            for _, attrs in G.nodes(data=True)
+                        )
+                        has_mixer = any(
+                            attrs.get("entity_type") == "mixer"
+                            for _, attrs in G.nodes(data=True)
+                        )
+
+                        vasp_weight = 1.0 if has_sanctioned else (0.9 if has_mixer else 0.2)
+                        
+                        score = compute_risk_score(
+                            direct_exposure=direct_exp,
+                            indirect_exposure=direct_exp * 0.5,
+                            vasp_risk_category=vasp_weight,
+                            typology_flags=min(1.0, flagged_nodes / 5.0),
+                            volume_anomaly=0.3,
+                        )
+                        if has_sanctioned:
+                            score = max(score, 90)
+
+                        final_job.risk_score = score
+                        final_job.risk_band = classify_risk_band(score)
+                    except Exception:
+                        logger.warning("run_trace: failed to compute risk score for %s", trace_job_id, exc_info=True)
+
                     final_db.commit()
 
             logger.info(

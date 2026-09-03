@@ -351,8 +351,75 @@ async def get_ai_analysis(
     from app.risk.mistral_analyst import get_cached
     verdict = get_cached(str(trace_id))
     if verdict is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No cached analysis — POST to /ai-analysis first",
-        )
-    return {"trace_id": str(trace_id), **_verdict_to_dict(verdict)}
+        return {"trace_id": str(trace_id), "cached": False, "detail": "No AI analysis run yet"}
+    return {"trace_id": str(trace_id), "cached": True, **_verdict_to_dict(verdict)}
+
+
+@router.get(
+    "/{trace_id}/nearest-vasps",
+    summary="Get ranked nearest VASPs / exchanges for LEA disclosure routing",
+)
+async def get_nearest_vasps(
+    trace_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict[str, Any]:
+    """Return nearest Virtual Asset Service Providers (exchanges, mixers, bridges)
+    reachable from the seed wallet, ordered by hop count and value.
+    """
+    from sqlalchemy import text
+    query = text(
+        """
+        SELECT vasp_address, vasp_name, entity_type, hops, path, total_value, confidence, source, created_at
+        FROM vasp_matches
+        WHERE trace_id = CAST(:trace_id AS UUID)
+        ORDER BY hops ASC, total_value DESC, confidence DESC
+        """
+    )
+    result = await db.execute(query, {"trace_id": str(trace_id)})
+    rows = result.fetchall()
+
+    # Fallback for traces completed prior to persistence fix
+    if not rows:
+        try:
+            job_result = await db.execute(select(TraceJob).where(TraceJob.id == trace_id))
+            job = job_result.scalars().first()
+            if job and job.status == "completed":
+                from app.graph.persistence import get_graph
+                from app.graph.vasp_finder import find_nearest_vasps
+                G = await get_graph(trace_id=job.id, db=db)
+                if G and G.number_of_nodes() > 0:
+                    await find_nearest_vasps(
+                        G=G,
+                        seed_address=job.wallet_address,
+                        chain=job.chain,
+                        trace_id=job.id,
+                        case_id=job.case_id,
+                        db=db,
+                    )
+                    # Re-query after find_nearest_vasps persisted the matches
+                    result = await db.execute(query, {"trace_id": str(trace_id)})
+                    rows = result.fetchall()
+        except Exception:
+            logger.exception("get_nearest_vasps fallback error for trace %s", trace_id)
+
+    matches = [
+        {
+            "vasp_address": r.vasp_address,
+            "vasp_name": r.vasp_name,
+            "entity_type": r.entity_type,
+            "hops": r.hops,
+            "path": r.path,
+            "total_value": float(r.total_value),
+            "confidence": float(r.confidence),
+            "source": r.source,
+            "created_at": r.created_at.isoformat() if hasattr(r.created_at, "isoformat") else str(r.created_at),
+        }
+        for r in rows
+    ]
+
+    return {
+        "trace_id": str(trace_id),
+        "total_matches": len(matches),
+        "nearest_vasps": matches,
+    }
+

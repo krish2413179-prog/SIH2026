@@ -94,7 +94,7 @@ function BulletList({ items, icon: Icon, iconColor, title }: {
   title: string;
 }) {
   const [open, setOpen] = useState(true);
-  if (!items.length) return null;
+  if (!items || !items.length) return null;
   return (
     <div className="rounded-lg bg-gray-800/60 border border-gray-700/60 overflow-hidden">
       <button
@@ -141,8 +141,17 @@ export function MistralPanel({ traceId }: MistralPanelProps) {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    api.get<AiVerdict>(`/traces/${traceId}/ai-analysis`)
-      .then(res => { if (!cancelled) { setVerdict(res.data); setNotCached(false); } })
+    api.get<AiVerdict & { cached?: boolean }>(`/traces/${traceId}/ai-analysis`)
+      .then(res => {
+        if (!cancelled) {
+          if (res.data.cached === false) {
+            setNotCached(true);
+          } else {
+            setVerdict(res.data);
+            setNotCached(false);
+          }
+        }
+      })
       .catch(err => {
         if (cancelled) return;
         if (err?.response?.status === 404) {
