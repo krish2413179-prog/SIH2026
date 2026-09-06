@@ -7,7 +7,7 @@ services:
     env: python          # Render will use a Python virtualenv
     # Render will install the package in editable mode (reads pyproject.toml)
     buildCommand: |
-      pip install -e .
+      poetry install --no-interaction --no-ansi
     # $PORT is injected by Render for the web process
     startCommand: |
       uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -61,14 +61,16 @@ services:
       SAHYOG_AUTH_TYPE: api_key
       SAHYOG_API_KEY: ${SAHYOG_API_KEY}
 
-  # -------------------------------------------------
+    preDeployCommand: |
+      alembic upgrade head
+    # -------------------------------------------------
   # 2️⃣ Celery worker (Background Service)
   # -------------------------------------------------
   - type: worker
     name: vasp-celery
     env: python
     buildCommand: |
-      pip install -e .
+      poetry install --no-interaction --no-ansi
     # Listen on every queue the app defines
     startCommand: |
       celery -A app.tasks.celery_app.celery_app worker \
