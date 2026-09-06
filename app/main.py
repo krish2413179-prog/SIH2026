@@ -52,10 +52,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # ── CORS — Fixed to explicitly allow port 3000
+    # ── CORS — Dynamically allow all origins (localhost, Vercel, Render)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
+        allow_origin_regex=r"https?://.*",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
