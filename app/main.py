@@ -75,10 +75,11 @@ def create_app() -> FastAPI:
 
     app.include_router(api_v1_router)
 
-    # ── Health endpoint ───────────────────────────────────────
+    # ── Health & root endpoints ───────────────────────────────
+    @app.get("/", tags=["health"])
     @app.get("/health", tags=["health"])
     async def health_check() -> dict[str, str]:
-        return {"status": "ok"}
+        return {"status": "ok", "service": "Blockchain VASP Attribution Engine"}
 
     return app
 
