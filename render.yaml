@@ -5,9 +5,10 @@ services:
   - type: web
     name: vasp-backend
     env: python          # Render will use a Python virtualenv
-    # Render will install the package in editable mode (reads pyproject.toml)
+    # Render will install the package in editable/standard mode via setuptools (reads pyproject.toml)
     buildCommand: |
-      poetry install --no-interaction --no-ansi
+      pip install --upgrade pip
+      pip install .
     # $PORT is injected by Render for the web process
     startCommand: |
       uvicorn app.main:app --host 0.0.0.0 --port $PORT
@@ -70,7 +71,8 @@ services:
     name: vasp-celery
     env: python
     buildCommand: |
-      poetry install --no-interaction --no-ansi
+      pip install --upgrade pip
+      pip install .
     # Listen on every queue the app defines
     startCommand: |
       celery -A app.tasks.celery_app.celery_app worker \
