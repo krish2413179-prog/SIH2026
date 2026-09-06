@@ -1,17 +1,15 @@
 services:
   # -------------------------------------------------
-  # 1️⃣ FastAPI backend (Web Service)
+  # 1️⃣ FastAPI backend + Celery Worker (Combined Web Service - Free Tier)
   # -------------------------------------------------
   - type: web
     name: vasp-backend
     env: python          # Render will use a Python virtualenv
-    # Render will install the package in editable/standard mode via setuptools (reads pyproject.toml)
     buildCommand: |
       pip install --upgrade pip
       pip install .
-    # $PORT is injected by Render for the web process
-    startCommand: |
-      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    # Runs Celery worker in background + Uvicorn web server in single service
+    startCommand: bash ./start.sh
     envVars:
       # ── Application ───────────────────────────────────────
       APP_ENV: development               # or production / staging
@@ -64,56 +62,3 @@ services:
 
     preDeployCommand: |
       alembic upgrade head
-    # -------------------------------------------------
-  # 2️⃣ Celery worker (Background Service)
-  # -------------------------------------------------
-  - type: worker
-    name: vasp-celery
-    env: python
-    buildCommand: |
-      pip install --upgrade pip
-      pip install .
-    # Listen on every queue the app defines
-    startCommand: |
-      celery -A app.tasks.celery_app.celery_app worker \
-        -Q celery,traces,reports,sahyog \
-        -n render-worker \
-        --loglevel=info
-    envVars:
-      # (Same block as the web service – copy‑paste)
-      APP_ENV: development
-      APP_SECRET_KEY: ${APP_SECRET_KEY}
-      DEBUG: false
-
-      DATABASE_URL: ${DATABASE_URL}
-      DATABASE_SYNC_URL: ${DATABASE_SYNC_URL}
-      DB_ENCRYPTION_KEY: ${DB_ENCRYPTION_KEY}
-
-      REDIS_URL: ${REDIS_URL}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND}
-
-      JWT_SECRET_KEY: ${JWT_SECRET_KEY}
-      JWT_ALGORITHM: HS256
-
-      ETHERSCAN_API_KEY: ${ETHERSCAN_API_KEY}
-      BSCSCAN_API_KEY: ${BSCSCAN_API_KEY}
-      POLYGONSCAN_API_KEY: ${POLYGONSCAN_API_KEY}
-      SOLSCAN_API_KEY: ${SOLSCAN_API_KEY}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
-
-      BLOCKCHAIN_CACHE_TTL: 1800
-      RATE_LIMIT_PER_MINUTE: 100
-      TRACE_QUEUE_DEPTH_LIMIT: 100
-
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://your-production-domain.com
-
-      S3_ENDPOINT_URL: http://localhost:9000
-      S3_ACCESS_KEY_ID: minioadmin
-      S3_SECRET_ACCESS_KEY: minioadmin
-      S3_BUCKET_NAME: vasp-engine-reports
-      S3_REGION: us-east-1
-
-      SAHYOG_ENDPOINT_URL: https://sahyog.gov.in/api
-      SAHYOG_AUTH_TYPE: api_key
-      SAHYOG_API_KEY: ${SAHYOG_API_KEY}
