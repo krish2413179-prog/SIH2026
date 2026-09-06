@@ -6,15 +6,60 @@ Implements the common interface required by Requirements 4.2, 4.4, 4.5.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
+from pathlib import Path
 
 import httpx
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Raw API response archive (P2-3)
+# ---------------------------------------------------------------------------
+
+RAW_ARCHIVE_DIR = Path(os.environ.get("RAW_API_ARCHIVE_DIR", "/tmp/api_archive"))
+
+
+def _archive_response(chain: str, address: str, action: str, body: bytes) -> str:
+    """Write raw API response bytes to disk and return the SHA-256 hex digest.
+
+    The archive is a lightweight audit trail: every successful HTTP response
+    from an upstream block-explorer API is written to ``RAW_ARCHIVE_DIR`` as a
+    JSON file named::
+
+        {chain}_{address[:12]}_{action}_{timestamp}_{sha[:8]}.json
+
+    Archive failures are silently swallowed — they must never interrupt an
+    active investigation trace.
+
+    Args:
+        chain:   Chain identifier (e.g. ``"ETH"``).
+        address: Queried on-chain address (first 12 chars used in filename).
+        action:  API action/endpoint label (e.g. ``"txlist"``).
+        body:    Raw response bytes from the upstream API.
+
+    Returns:
+        Full SHA-256 hex digest of *body*.
+    """
+    sha = hashlib.sha256(body).hexdigest()
+    try:
+        RAW_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        fname = (
+            RAW_ARCHIVE_DIR
+            / f"{chain}_{address[:12]}_{action}_{ts}_{sha[:8]}.json"
+        )
+        fname.write_bytes(body)
+    except Exception:  # noqa: BLE001
+        pass  # archive failure must never break a trace
+    return sha
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +296,10 @@ class BlockchainAdapter(ABC):
     ) -> dict:
         """Perform a GET request with exponential backoff on transient errors.
 
+        On every successful response the raw bytes are archived to disk via
+        :func:`_archive_response` (P2-3).  Archive failures are silently
+        swallowed so they never interrupt a live trace.
+
         Retry policy (Requirements 4.4, 4.5):
         - Up to ``_RETRY_ATTEMPTS`` (5) total attempts.
         - On :class:`RateLimitError`: wait ``min(base * 2^attempt, 60s)``
@@ -274,6 +323,7 @@ class BlockchainAdapter(ABC):
             DataUnavailableError: All retries exhausted without a successful
                                   response due to non-rate-limit errors.
         """
+        params = params or {}
         delay = _BACKOFF_BASE
         last_exc: Exception | None = None
 
@@ -289,7 +339,35 @@ class BlockchainAdapter(ABC):
                             f"Rate limit response {response.status_code} from {url}"
                         )
 
+                    if response.status_code != 200:
+                        logger.error(
+                            "%s HTTP %d from %s params=%s",
+                            self.chain,
+                            response.status_code,
+                            url,
+                            str(params)[:200],
+                        )
+
                     response.raise_for_status()
+
+                    # ---- P2-3: archive raw response bytes ----------------
+                    # httpx populates response.content (bytes) synchronously
+                    # after a completed request — no extra await needed.
+                    _raw = response.content
+                    if _raw:
+                        _archive_response(
+                            getattr(self, "chain", "unknown"),
+                            str(
+                                params.get(
+                                    "address",
+                                    params.get("account", "unknown"),
+                                )
+                            ),
+                            str(params.get("action", "fetch")),
+                            _raw,
+                        )
+                    # -------------------------------------------------------
+
                     return response.json()  # type: ignore[no-any-return]
 
                 except RateLimitError as exc:

@@ -39,7 +39,7 @@ Implement the full-stack Blockchain Intelligence & VASP Attribution Engine using
   - [x] 3.1 Implement `create_token_pair`, `verify_token`, and `refresh_access_token` functions
     - Use `python-jose` with HS256; configurable secret and expiry; `jwt_keys` table multi-key lookup for rotation support
     - _Requirements: 1.1, 1.2, 1.3, 16.7_
-  - [ ]* 3.2 Write property test for token pair creation and rejection (Properties 1, 2)
+  - [x]* 3.2 Write property test for token pair creation and rejection (Properties 1, 2)
     - **Property 1: Valid login always returns a token pair**
     - **Property 2: Invalid or expired tokens are always rejected**
     - **Validates: Requirements 1.2, 1.3**
@@ -77,13 +77,13 @@ Implement the full-stack Blockchain Intelligence & VASP Attribution Engine using
   - [x] 4.4 Implement case REST endpoints (`POST /cases`, `GET /cases`, `GET /cases/{id}`, `PATCH /cases/{id}`, `DELETE /cases/{id}`)
     - Role-filtered list; supervisor can see all org-unit cases; under-review blocks investigator modifications (HTTP 403)
     - _Requirements: 2.1, 2.5, 2.7_
-  - [ ]* 4.5 Write property test for under-review blocking (Property 7)
+  - [x]* 4.5 Write property test for under-review blocking (Property 7)
     - **Property 7: Under-review cases block investigator modifications**
     - **Validates: Requirements 2.5**
-  - [ ]* 4.6 Write property test for case status change audit entries (Property 8)
+  - [x]* 4.6 Write property test for case status change audit entries (Property 8)
     - **Property 8: Case status changes produce audit entries**
     - **Validates: Requirements 2.6**
-  - [ ]* 4.7 Write property test for case search filter consistency (Property 9)
+  - [x]* 4.7 Write property test for case search filter consistency (Property 9)
     - **Property 9: Case search filter consistency**
     - **Validates: Requirements 2.7**
 
@@ -154,13 +154,13 @@ Implement the full-stack Blockchain Intelligence & VASP Attribution Engine using
   - [ ]* 10.2 Write property test for VASP update cache invalidation (Property 22)
     - **Property 22: VASP update invalidates related cache**
     - **Validates: Requirements 7.3**
-  - [~] 10.3 Implement bulk CSV import endpoint (`POST /admin/vasps/import`)
+  - [ ] 10.3 Implement bulk CSV import endpoint (`POST /admin/vasps/import`)
     - Stream with `csv.DictReader`; Pydantic per-row validation; commit in batches of 500; return per-row error list
     - _Requirements: 7.4, 7.5_
   - [ ]* 10.4 Write property test for CSV import partial failure tolerance (Property 23)
     - **Property 23: CSV import partial failure tolerance**
     - **Validates: Requirements 7.4, 7.5**
-  - [~] 10.5 Implement read-only VASP search endpoint (`GET /admin/vasps/search`) accessible to all authenticated roles
+  - [ ] 10.5 Implement read-only VASP search endpoint (`GET /admin/vasps/search`) accessible to all authenticated roles
     - _Requirements: 7.6_
   - [ ]* 10.6 Write property test for VASP search accessible to all authenticated users (Property 24)
     - **Property 24: VASP search accessible to all authenticated users**
@@ -187,7 +187,7 @@ Implement the full-stack Blockchain Intelligence & VASP Attribution Engine using
   - [ ]* 11.6 Write property test for special typology flags for known entities (Property 21)
     - **Property 21: Special typology flags for known entities**
     - **Validates: Requirements 6.7, 6.8**
-  - [~] 11.7 Expose `GET /traces/{trace_id}/attributions` endpoint
+  - [ ] 11.7 Expose `GET /traces/{trace_id}/attributions` endpoint
     - _Requirements: 6.9_
 
 - [x] 12. Risk scoring engine (`app/risk/`)

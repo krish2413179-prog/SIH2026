@@ -71,27 +71,24 @@ async def _write_wallet_audit(
         )
 
 
-def _enqueue_trace(trace_job_id: uuid.UUID) -> None:
+def _enqueue_trace(trace_job_id: uuid.UUID) -> str | None:
     """Fire-and-forget Celery enqueue for a trace job.
 
     Wrapped in try/except so that Celery being temporarily unavailable
     never blocks or fails the HTTP submission response.
-
-    Requirement 3.4 — submission succeeds even when Celery is unavailable.
     """
     try:
-        # Import the task directly so .delay() is used — this respects task_routes
-        # and ensures the task name is validated against the registered task registry.
-        # send_task() bypasses task_routes and can silently route to the wrong queue.
         from app.tasks.trace_tasks import run_trace  # local import to avoid circularity
 
-        run_trace.delay(str(trace_job_id))
+        task = run_trace.delay(str(trace_job_id))
+        return task.id
     except Exception:  # noqa: BLE001
         logger.exception(
             "Failed to enqueue Celery trace task for trace_job_id=%s; "
             "job remains in 'queued' status for manual re-queue",
             trace_job_id,
         )
+        return None
 
 
 # ---------------------------------------------------------------------------

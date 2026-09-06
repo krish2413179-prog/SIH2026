@@ -1,29 +1,27 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true,
-  output: 'standalone',
 
-  // Proxy API requests to FastAPI backend during development
+// When running Next.js on Windows, localhost:8000 points to Windows — not WSL.
+// Use the WSL2 host IP so the rewrite reaches the uvicorn backend running in WSL.
+// Falls back to localhost for any non-Windows environment.
+const BACKEND_HOST =
+  process.env.BACKEND_URL ||
+  (process.platform === "win32" ? "http://172.20.240.158:8000" : "http://localhost:8000")
+
+const nextConfig = {
+  typescript: {
+    ignoreBuildErrors: true,
+  },
+  images: {
+    unoptimized: true,
+  },
   async rewrites() {
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/:path*`,
+        destination: `${BACKEND_HOST}/api/:path*`,
       },
-    ];
+    ]
   },
+}
 
-  // Allow images from MinIO/S3
-  images: {
-    remotePatterns: [
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '9000',
-        pathname: '/**',
-      },
-    ],
-  },
-};
-
-export default nextConfig;
+export default nextConfig

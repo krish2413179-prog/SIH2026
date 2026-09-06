@@ -4,6 +4,79 @@ Implements the weighted risk score formula and band classification described
 in the design document, Section 8.
 
 Requirements: 8.1, 8.2, 8.3
+
+============================================================
+RISK SCORING FORMULA (canonical reference)
+============================================================
+
+    Risk Score = round(
+        (
+            0.35 * direct_exposure
+          + 0.20 * indirect_exposure
+          + 0.20 * vasp_risk_category
+          + 0.15 * typology_flags
+          + 0.10 * volume_anomaly
+        ) * 100
+    )
+
+All factor inputs are normalised to [0.0, 1.0] before the formula is applied.
+The final score is an integer in [0, 100].
+
+------------------------------------------------------------
+Factor weights
+------------------------------------------------------------
+
+  direct_exposure    (weight 0.35)
+      Ratio of flagged direct neighbours of the seed address.
+      "Flagged" means the node is tagged as mixer, sanctioned,
+      darknet, or scam.  Value = flagged_direct / total_direct,
+      or 0.0 if the seed has no direct neighbours.
+
+  indirect_exposure  (weight 0.20)
+      Same ratio but computed over ALL nodes within 3 hops of
+      the seed (excluding the seed itself).
+
+  vasp_risk_category (weight 0.20)
+      Risk tier of the nearest attributed VASP in the graph.
+      Tier lookup (see VASP_RISK_TIERS below):
+          CEX      → 0.1  (regulated exchange, lowest risk)
+          DEX      → 0.3  (medium-low)
+          bridge   → 0.5  (medium)
+          mixer    → 0.9  (very high)
+          darknet  → 1.0  (maximum risk)
+      Defaults to 0.2 for any unrecognised category ("other").
+
+  typology_flags     (weight 0.15)
+      Normalised count of active laundering typology flags
+      (peel chain, smurfing, layering, fan-out, fan-in, etc.).
+      Value = active_flag_count / total_possible_flags, clamped
+      to [0, 1].
+
+  volume_anomaly     (weight 0.10)
+      Z-score normalised transaction velocity for the seed
+      wallet, clamped to [0, 1].  A value of 1.0 means the
+      velocity is ≥ 3 standard deviations above the historical
+      mean for the chain.
+
+------------------------------------------------------------
+Band thresholds
+------------------------------------------------------------
+
+    Low    :  0 – 39
+    Medium : 40 – 69
+    High   : 70 – 100
+
+------------------------------------------------------------
+Automatic override
+------------------------------------------------------------
+
+    If any sanctioned or darknet address is present anywhere
+    in the transaction graph the score is forced to ≥ 90,
+    regardless of the weighted formula result.  This ensures
+    regulatory-mandated immediate escalation whenever OFAC /
+    darknet exposure is detected.
+
+============================================================
 """
 
 from __future__ import annotations

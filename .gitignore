@@ -66,3 +66,4 @@ celerybeat.pid
 *.pyo
 .hypothesis/
 scratch/
+.aider*

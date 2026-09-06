@@ -9,6 +9,11 @@ BFS-based multi-hop traversal with:
   - on-demand expand: build_graph_expand() deepens an existing nx.DiGraph by
     one additional BFS hop from all leaf nodes (no incoming edges from inside
     the existing graph)
+  - max_per_address cap: top-N transactions by amount to prevent fan-out explosion
+  - max_frontier_size cap: trim frontier to top-N addresses by cumulative volume
+  - vasp_check_fn: optional callback; addresses flagged as VASP are tagged and
+    excluded from further traversal (branch-stop)
+  - persist_hop_fn: optional async callback invoked at the start of each hop
 
 Requirements: 5.1, 5.2, 5.3, 5.4
 """
@@ -16,17 +21,20 @@ Requirements: 5.1, 5.2, 5.3, 5.4
 from __future__ import annotations
 
 import asyncio
+import logging
 import time
 import warnings
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Awaitable, Callable, Optional
 
 import networkx as nx
 import numpy as np
 
 if TYPE_CHECKING:
     from app.adapters import BlockchainAdapter
+
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -55,7 +63,7 @@ KNOWN_BRIDGE_CONTRACTS: set[str] = set()
 
 
 # ---------------------------------------------------------------------------
-# Warning
+# Warnings
 # ---------------------------------------------------------------------------
 
 
@@ -82,8 +90,12 @@ async def build_graph(
     adapter: "BlockchainAdapter",
     max_hops: int = 5,
     *,
-    min_nodes: int = DEFAULT_MIN_NODES,
+    min_nodes: int = 2000,
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
+    max_per_address: int = 200,
+    max_frontier_size: int = 150,
+    persist_hop_fn: Optional[Callable[[int], Awaitable[None]]] = None,
+    vasp_check_fn: Optional[Callable[[str], bool]] = None,
 ) -> nx.DiGraph:
     """Build a directed transaction graph via BFS from *seed_address*.
 
@@ -111,9 +123,26 @@ async def build_graph(
         Maximum BFS depth (clamped to MAX_HOPS_HARD_LIMIT).
     min_nodes:
         Keep expanding hops until the graph has at least this many nodes.
-        Default 20.
+        Default 2000.  Set high so BFS runs to max_hops unless the wallet
+        genuinely has fewer counterparties — the deadline and hop limit are
+        the real safety valves.
     deadline_seconds:
         Hard wall-clock budget.  Returns early if exceeded.  Default 300 (5 min).
+    max_per_address:
+        Maximum transactions to process per address per hop, ranked by amount
+        descending.  Safety valve against fan-out explosion on exchange hot
+        wallets.  Default 200 — high enough not to truncate normal wallets.
+    max_frontier_size:
+        Maximum addresses in the BFS frontier after each hop, ranked by
+        cumulative transaction volume descending.  Default 150.
+    persist_hop_fn:
+        Optional async callback ``async (hop: int) -> None`` called at the
+        **start** of each hop iteration (1-indexed).  Useful for persisting
+        partial graph state to the database between hops.
+    vasp_check_fn:
+        Optional synchronous callback ``(address: str) -> bool``.  When it
+        returns ``True`` the node is tagged ``entity_type='exchange'`` and is
+        NOT added to the next frontier (branch-stop on VASP hit).
 
     Returns
     -------
@@ -126,12 +155,19 @@ async def build_graph(
     G: nx.DiGraph = nx.DiGraph()
     G.add_node(seed_address, chain=chain)
 
-    frontier: set[str] = {seed_address}
-    visited:  set[str] = set()
+    # frontier is now a dict: addr -> cumulative_volume for volume-ranked trimming.
+    # Initialise with seed at volume 0 so the first hop processes it.
+    frontier: dict[str, float] = {seed_address: 0.0}
+    visited: set[str] = set()
 
     for hop in range(max_hops):
-        if not frontier:
+        unvisited_frontier = {a: v for a, v in frontier.items() if a not in visited}
+        if not unvisited_frontier:
             break
+
+        # ── persist_hop_fn callback (1-indexed) ───────────────────────────
+        if persist_hop_fn is not None:
+            await persist_hop_fn(hop + 1)
 
         # ── Deadline check ────────────────────────────────────────────────
         remaining = deadline - time.monotonic()
@@ -154,52 +190,99 @@ async def build_graph(
             )
             break
 
-        next_frontier: set[str] = set()
+        # next_frontier accumulates addr -> cumulative_volume for this hop
+        next_frontier: dict[str, float] = {}
+        nodes_before_hop = G.number_of_nodes()
+        api_calls = 0
 
-        for addr in frontier - visited:
+        for addr in list(unvisited_frontier.keys()):
             # Per-address deadline check so we don't overshoot on a slow API call
             if time.monotonic() >= deadline:
                 warnings.warn(
-                    f"build_graph: deadline hit mid-hop {hop} while processing {addr[:10]}…",
+                    f"build_graph: deadline hit mid-hop {hop + 1} while processing {addr[:10]}…",
                     DeadlineWarning,
                     stacklevel=2,
                 )
-                frontier = set()  # abort outer loop too
+                frontier = {}  # abort outer loop too
                 break
 
             if G.number_of_nodes() >= NODE_COUNT_LIMIT:
                 break
 
             txs = await adapter.get_transactions(addr)
+            api_calls += 1
+
+            # ── max_per_address cap: top-N by amount descending ───────────
+            if len(txs) > max_per_address:
+                txs = sorted(txs, key=lambda tx: float(tx.amount), reverse=True)[:max_per_address]
 
             for tx in txs:
                 s, t = tx.from_addr, tx.to_addr
                 if not s or not t:
                     continue
+
+                tx_amount = float(tx.amount)
+
                 if s not in G:
                     G.add_node(s, chain=chain)
                 if t not in G:
                     G.add_node(t, chain=chain)
 
                 is_bridge = t in KNOWN_BRIDGE_CONTRACTS
-                G.add_edge(s, t,
+                G.add_edge(
+                    s, t,
                     tx_hash=tx.tx_hash,
-                    amount=float(tx.amount),
+                    amount=tx_amount,
                     fee=float(tx.fee),
-                    timestamp=tx.timestamp.isoformat() if hasattr(tx.timestamp, "isoformat") else str(tx.timestamp),
+                    timestamp=(
+                        tx.timestamp.isoformat()
+                        if hasattr(tx.timestamp, "isoformat")
+                        else str(tx.timestamp)
+                    ),
                     chain=chain,
                     is_bridge=is_bridge,
                     bridge_protocol=tx.bridge_protocol if is_bridge else None,
                 )
-                next_frontier.add(t)
+
+                # ── VASP branch-stop ──────────────────────────────────────
+                if vasp_check_fn is not None and vasp_check_fn(t):
+                    G.nodes[t]["entity_type"] = "exchange"
+                    # Do NOT add to next_frontier — stop traversal on this branch
+                    continue
+
+                # Both endpoints are counterparties to follow.
+                # s may be an address that sends TO addr (incoming tx) — we
+                # must add it to next_frontier too, otherwise senders that
+                # never appear as destinations are silently dropped.
+                counterparty = t if s == addr else s
+                next_frontier[counterparty] = next_frontier.get(counterparty, 0.0) + tx_amount
+                # Also queue the other endpoint if it is genuinely new
+                other = s if counterparty == t else t
+                if other != addr and other not in visited:
+                    next_frontier[other] = next_frontier.get(other, 0.0) + tx_amount
 
             visited.add(addr)
 
+        # ── max_frontier_size cap: trim to top-N by volume ────────────────
+        if len(next_frontier) > max_frontier_size:
+            sorted_items = sorted(next_frontier.items(), key=lambda kv: kv[1], reverse=True)
+            next_frontier = dict(sorted_items[:max_frontier_size])
+
         frontier = next_frontier
 
-        # ── min_nodes check — stop early if we have enough ────────────────
-        n = G.number_of_nodes()
-        if n >= min_nodes:
+        # ── Per-hop INFO log ──────────────────────────────────────────────
+        new_nodes = G.number_of_nodes() - nodes_before_hop
+        logger.info(
+            "build_graph hop=%d frontier=%d visited=%d new_nodes=%d api_calls=%d",
+            hop + 1,
+            len(frontier),
+            len(visited),
+            new_nodes,
+            api_calls,
+        )
+
+        # ── min_nodes check — stop early if we have enough ───────────────
+        if G.number_of_nodes() >= min_nodes:
             break
 
     # ── Post-loop warnings ────────────────────────────────────────────────
@@ -228,6 +311,8 @@ async def build_graph_expand(
     adapter: "BlockchainAdapter",
     *,
     deadline_seconds: float = 120.0,
+    max_per_address: int = 200,
+    vasp_check_fn: Optional[Callable[[str], bool]] = None,
 ) -> nx.DiGraph:
     """Expand an existing graph by one additional BFS hop from leaf nodes.
 
@@ -243,6 +328,13 @@ async def build_graph_expand(
         Same chain/adapter as the original trace.
     deadline_seconds:
         Wall-clock budget for this expansion step.  Default 120 s (2 min).
+    max_per_address:
+        Maximum transactions to process per leaf address, ranked by amount
+        descending.  Default 20.
+    vasp_check_fn:
+        Optional synchronous callback ``(address: str) -> bool``.  When it
+        returns ``True`` the node is tagged ``entity_type='exchange'`` and no
+        further edges are added for that destination.
 
     Returns
     -------
@@ -264,6 +356,11 @@ async def build_graph_expand(
             break
 
         txs = await adapter.get_transactions(addr)
+
+        # max_per_address cap
+        if len(txs) > max_per_address:
+            txs = sorted(txs, key=lambda tx: float(tx.amount), reverse=True)[:max_per_address]
+
         for tx in txs:
             s, t = tx.from_addr, tx.to_addr
             if not s or not t:
@@ -272,13 +369,24 @@ async def build_graph_expand(
                 G.add_node(s, chain=chain)
             if t not in G:
                 G.add_node(t, chain=chain)
+
+            # VASP branch-stop
+            if vasp_check_fn is not None and vasp_check_fn(t):
+                G.nodes[t]["entity_type"] = "exchange"
+                continue
+
             if not G.has_edge(s, t):
                 is_bridge = t in KNOWN_BRIDGE_CONTRACTS
-                G.add_edge(s, t,
+                G.add_edge(
+                    s, t,
                     tx_hash=tx.tx_hash,
                     amount=float(tx.amount),
                     fee=float(tx.fee),
-                    timestamp=tx.timestamp.isoformat() if hasattr(tx.timestamp, "isoformat") else str(tx.timestamp),
+                    timestamp=(
+                        tx.timestamp.isoformat()
+                        if hasattr(tx.timestamp, "isoformat")
+                        else str(tx.timestamp)
+                    ),
                     chain=chain,
                     is_bridge=is_bridge,
                     bridge_protocol=tx.bridge_protocol if is_bridge else None,

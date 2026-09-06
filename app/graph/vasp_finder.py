@@ -22,6 +22,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.graph.sweep_detector import detect_deposit_sweeps
 from app.intel.lookup import tag_graph_nodes
+from app.risk.features import FeatureExtractor
+from app.risk.inference import InferenceClient
+
 
 if TYPE_CHECKING:
     pass
@@ -77,6 +80,10 @@ async def find_nearest_vasps(
 
     # Step 1: Tag graph nodes
     tags = await tag_graph_nodes(G, chain, db)
+    logger.info(
+        'find_nearest_vasps: checked %d addresses against intel DB, got %d matches',
+        len(list(G.nodes())), len(tags),
+    )
 
     # Extract known exchange hot wallets for sweep detection
     known_hot: dict[str, str] = {
@@ -96,21 +103,28 @@ async def find_nearest_vasps(
                 "intel_confidence": sweep.confidence,
             })
 
-    # Step 2b: Auto-tag all direct/indirect counterparty destinations as VASP Deposit Targets
+    # Step 2c: AI/ML Fallback for unindexed wallets
+    inf_client = InferenceClient()
     for node, attrs in G.nodes(data=True):
         if str(node).lower() == seed_address.lower():
             continue
-        
-        # Check if there is an edge or flow from seed to this node or from this node to seed
-        has_flow = G.has_edge(seed_node, node) or G.has_edge(node, seed_node) or (G.in_degree(node) > 0)
-        
-        if has_flow and not attrs.get("entity_type"):
-            attrs["entity_type"] = "CEX"
-            attrs["entity_name"] = "Target Exchange / VASP Deposit Wallet"
-            attrs["intel_source"] = "counterparty_flow_heuristic"
-            attrs["intel_confidence"] = 0.85
+
+        if not attrs.get("entity_type"):
+            # Extract features and run probabilistic match
+            features = FeatureExtractor.extract_node_features(G, node)
+            vector = FeatureExtractor.to_vector(features)
+            prediction = await inf_client.predict_vasp(vector)
+
+            if prediction.probability > 0.70 and prediction.entity_type == "CEX":
+                attrs["entity_type"] = "CEX"
+                attrs["entity_name"] = f"Probabilistic VASP ({prediction.probability:.2%})"
+                attrs["intel_source"] = "ml_clustering_engine"
+                attrs["intel_confidence"] = prediction.probability
+                # Store the XAI reasoning in the node attributes for report generation
+                attrs["intel_reasoning"] = prediction.reasoning
 
     # Step 3: Find shortest paths to all VASP nodes
+
     results: list[VASPMatchResult] = []
     G_undirected = G.to_undirected()
 
@@ -159,7 +173,12 @@ async def find_nearest_vasps(
             for i in range(len(path) - 1):
                 u, v = path[i], path[i + 1]
                 edge_data = G.get_edge_data(u, v) or G.get_edge_data(v, u) or {}
-                total_value += float(edge_data.get("amount", 0))
+                raw_amt = float(edge_data.get("amount", 0))
+                if raw_amt >= 1e12:
+                    raw_amt = raw_amt / 1e18  # Wei to ETH
+                elif raw_amt >= 1e8 and raw_amt < 1e12:
+                    raw_amt = raw_amt / 1e8   # Satoshi to BTC
+                total_value += raw_amt
 
             base_conf = float(attrs.get("intel_confidence", 0.80))
             hop_penalty = max(0.0, (hops - 1) * 0.10)
@@ -172,7 +191,7 @@ async def find_nearest_vasps(
                     entity_type=entity_type,
                     hops=hops,
                     path=path,
-                    total_value=round(total_value, 6),
+                    total_value=round(total_value, 4),
                     confidence=confidence,
                     source=attrs.get("intel_source", "known_addresses"),
                 )
@@ -182,6 +201,15 @@ async def find_nearest_vasps(
 
     # Rank results: nearest hops first, then highest value, then highest confidence
     results.sort(key=lambda r: (r.hops, -r.total_value, -r.confidence))
+
+    logger.info(
+        'find_nearest_vasps: %d genuine VASP matches (CEX=%d, mixer=%d, bridge=%d, sanctioned=%d)',
+        len(results),
+        sum(1 for r in results if r.entity_type == 'CEX'),
+        sum(1 for r in results if r.entity_type == 'mixer'),
+        sum(1 for r in results if r.entity_type == 'bridge'),
+        sum(1 for r in results if r.entity_type == 'sanctioned'),
+    )
 
     # Step 4: Persist to vasp_matches database table
     from sqlalchemy import delete

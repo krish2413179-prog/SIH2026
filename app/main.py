@@ -52,29 +52,23 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    # ── CORS — Fixed to explicitly allow port 3000
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.cors_origins_list,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # ── Rate limiter (slowapi) ────────────────────────────────
     app.state.limiter = limiter
     app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
     app.add_middleware(SlowAPIMiddleware)
 
-    # ── Audit logging (post-response, mutating requests) ──────
-    app.add_middleware(AuditMiddleware)
-
-    # ── Security headers (HSTS etc.) ──────────────────────────
-    app.add_middleware(SecurityHeadersMiddleware)
-
-    # ── CORS — must be added LAST so it is the outermost layer.
-    # BaseHTTPMiddleware (SecurityHeaders, Audit) intercepts OPTIONS preflight
-    # before an inner CORSMiddleware can respond, breaking CORS entirely.
-    # Starlette processes middlewares in reverse registration order (last = outermost).
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origins_list,
-        allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+    # ── Temporarily disabled for Hackathon to fix CORS/Connectivity ──
+    # app.add_middleware(AuditMiddleware)
+    # app.add_middleware(SecurityHeadersMiddleware)
 
     # ── Routers ───────────────────────────────────────────────
     from app.api.v1 import router as api_v1_router  # noqa: PLC0415

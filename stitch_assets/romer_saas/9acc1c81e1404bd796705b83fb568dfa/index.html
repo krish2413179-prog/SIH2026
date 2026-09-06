@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en" style=""><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Romer - The command dashboard for focused teams</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;520;600;700&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e0e0ff",
+                        "on-primary": "#000ba6",
+                        "tertiary-fixed-dim": "#ffb689",
+                        "secondary-fixed": "#92f1ff",
+                        "secondary-container": "#00b1c2",
+                        "on-tertiary-fixed": "#311300",
+                        "background": "#131314",
+                        "primary": "#bec2ff",
+                        "on-secondary-container": "#003e44",
+                        "tertiary": "#ffb689",
+                        "on-background": "#e5e2e3",
+                        "error": "#ffb4ab",
+                        "primary-container": "#7a85ff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "surface-tint": "#bec2ff",
+                        "on-secondary-fixed": "#001f23",
+                        "on-secondary": "#00363c",
+                        "on-surface": "#e5e2e3",
+                        "on-tertiary-fixed-variant": "#743500",
+                        "on-primary-fixed-variant": "#1f2bc8",
+                        "surface-dim": "#131314",
+                        "on-primary-fixed": "#000469",
+                        "outline": "#8f8fa1",
+                        "inverse-on-surface": "#313031",
+                        "surface-container": "#201f21",
+                        "secondary": "#50d8e9",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#131314",
+                        "inverse-surface": "#e5e2e3",
+                        "on-primary-container": "#000992",
+                        "surface-container-lowest": "#0e0e0f",
+                        "outline-variant": "#454655",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353436",
+                        "tertiary-fixed": "#ffdbc8",
+                        "surface-variant": "#353436",
+                        "on-tertiary": "#512300",
+                        "tertiary-container": "#e0731d",
+                        "on-surface-variant": "#c6c5d8",
+                        "surface-bright": "#3a393a",
+                        "on-tertiary-container": "#471e00",
+                        "surface-container-high": "#2a2a2b",
+                        "surface-container-low": "#1c1b1d",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#50d8e9",
+                        "inverse-primary": "#3d4ae0",
+                        "on-secondary-fixed-variant": "#004f57",
+                        "custom-bg": "#070708",
+                        "custom-divider": "#232426",
+                        "custom-card-bg": "#101112",
+                        "custom-sidebar": "#0d0e0f",
+                        "custom-panel": "#111214",
+                        "custom-text-muted": "#9A9DA3",
+                        "custom-btn-primary": "#5E6BFF",
+                        "custom-btn-text": "#F0F1F2",
+                        "custom-divider-light": "#1B1C1E"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "2xl": "1rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "gutter": "20px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "margin-safe": "32px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Manrope"],
+                        "h2": ["Manrope"],
+                        "body-md": ["Inter"],
+                        "h4": ["Manrope"],
+                        "body-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "h1": ["Manrope"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["24px", { "lineHeight": "1.2", "letterSpacing": "-0.04em", "fontWeight": "520" }],
+                        "h2": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "body-md": ["14px", { "lineHeight": "1.5", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "h4": ["18px", { "lineHeight": "1.4", "letterSpacing": "-0.02em", "fontWeight": "520" }],
+                        "body-lg": ["18px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-data": ["13px", { "lineHeight": "1", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+                        "h1": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "hero-headline": ["84px", { "lineHeight": "1.05", "letterSpacing": "-0.05em", "fontWeight": "520" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #070708; color: #e5e2e3; }
+        .glass-panel { background: rgba(16, 17, 18, 0.8); backdrop-filter: blur(20px); }
+        .inner-glow { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05); }
+        .thin-border { border: 1px solid rgba(255, 255, 255, 0.05); }
+    </style>
+<style>.dot-pattern { background-image: radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 24px 24px; }</style></head>
+<body class="font-body-md antialiased selection:bg-custom-btn-primary selection:text-white">
+<!-- 1. Fixed Header -->
+<header class="bg-custom-bg/90 backdrop-blur-md w-full top-0 h-[80px] border-b border-custom-divider z-50 fixed">
+<div class="flex justify-between items-center w-full px-margin-safe max-w-[1728px] mx-auto h-full">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full border border-custom-text-muted flex items-center justify-center text-on-surface font-h3 font-bold text-sm">R</div>
+<span class="font-h3 text-h3 font-bold tracking-tight text-on-surface">Romer</span>
+</div>
+<nav class="hidden md:flex gap-10 h-full items-center">
+<a class="font-body-md text-body-md text-on-surface hover:text-white transition-colors duration-200 opacity-100" href="#">Platform</a>
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Dashboards</a>
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Customers</a>
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Pricing</a>
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Resources</a>
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Contact</a>
+</nav>
+<div class="flex gap-6 items-center">
+<a class="font-body-md text-body-md text-custom-text-muted hover:text-on-surface transition-colors duration-200" href="#">Log in</a>
+<a class="font-body-md text-body-md bg-white text-black px-6 py-2.5 rounded-full hover:bg-opacity-90 transition-all duration-200 font-medium shadow-sm hover:scale-105" href="#">Start free</a>
+</div>
+</div>
+</header>
+<main class="max-w-[1728px] mx-auto mt-[80px]">
+<!-- 2. Hero & 3. Hero Dashboard Mockup -->
+<section class="px-margin-safe relative pt-48 pb-32">
+<div class="max-w-[1516px] mx-auto">
+<div class="flex flex-col mb-32 items-center text-center">
+<h1 class="font-h3 text-hero-headline text-on-surface mb-8 max-w-[1000px]">The command dashboard<br/>for focused teams</h1>
+<p class="font-body-lg text-[22px] text-custom-text-muted mb-12 max-w-3xl">Romer turns scattered signals, approvals, and operating data into one calm dashboard for leadership teams.</p>
+<div class="flex gap-6 justify-center items-center">
+<button class="bg-white text-black px-8 py-3.5 rounded-full font-body-lg font-medium shadow-sm hover:scale-105 transition-transform">Get started</button>
+<button class="bg-transparent border border-custom-divider text-on-surface px-8 py-3.5 rounded-full font-body-lg hover:bg-white/5 transition-colors">Book a demo</button>
+</div>
+<div class="mt-16 text-center">
+<a class="text-custom-text-muted font-mono-data hover:text-primary flex items-center justify-center gap-2 transition-colors" href="#">Live operating layer romer.app/overview <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+</div>
+</div>
+<!-- Hero Dashboard Mockup -->
+<div class="w-full bg-[#0a0a0b] rounded-2xl border border-white/[0.08] overflow-hidden flex h-[720px] inner-glow shadow-2xl relative shadow-black/50">
+<!-- Sidebar -->
+<div class="w-72 bg-[#0d0e0f] border-r border-white/[0.05] p-8 flex flex-col gap-6">
+<div class="text-[11px] text-custom-text-muted uppercase tracking-[0.2em] mb-4 px-2 opacity-50 font-bold">Navigation</div>
+<div class="flex flex-col gap-2">
+<div class="flex items-center gap-4 px-4 py-3 bg-white/[0.06] rounded-xl text-on-surface font-medium cursor-pointer transition-colors shadow-sm inner-glow">
+<span class="material-symbols-outlined text-[20px]">grid_view</span>
+<span class="text-body-md">Overview</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">sensors</span>
+<span class="text-body-md">Signals</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">check_circle</span>
+<span class="text-body-md">Approvals</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">bar_chart</span>
+<span class="text-body-md">Metrics</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">warning</span>
+<span class="text-body-md">Risks</span>
+</div>
+<div class="mt-6 flex flex-col gap-2 pt-6 border-t border-white/[0.05]">
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">group</span>
+<span class="text-body-md">Teams</span>
+</div>
+<div class="flex items-center gap-4 px-4 py-3 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.03] rounded-xl cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[20px] opacity-50 group-hover:opacity-100 transition-opacity">article</span>
+<span class="text-body-md">Reports</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Center Area -->
+<div class="flex-1 p-10 flex flex-col gap-10 bg-[#0a0a0b] relative overflow-y-auto">
+<div class="grid grid-cols-4 gap-8">
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow"><div class="flex justify-between items-start mb-4"><div class="text-[11px] text-custom-text-muted font-bold uppercase tracking-widest opacity-70">REVENUE</div></div>
+<div class="font-h3 text-[32px] leading-tight text-on-surface font-bold tracking-tight">$2.4M</div>
+<div class="flex items-center justify-between mt-4 pt-4 border-t border-white/[0.05]">
+<div class="text-[12px] text-secondary font-medium flex items-center gap-1.5">
+<span class="material-symbols-outlined text-[16px]">trending_up</span>+12% vs last month
+    </div>
+<div class="flex gap-1 items-end h-4">
+<div class="w-1 h-2 bg-secondary opacity-20 rounded-t"></div>
+<div class="w-1 h-3 bg-secondary opacity-40 rounded-t"></div>
+<div class="w-1 h-2 bg-secondary opacity-60 rounded-t"></div>
+<div class="w-1 h-4 bg-secondary rounded-t"></div>
+</div>
+</div></div>
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow"><div class="flex justify-between items-start mb-4"><div class="text-[11px] text-custom-text-muted font-bold uppercase tracking-widest opacity-70">OPEN APPROVALS</div></div>
+<div class="font-h3 text-[32px] leading-tight text-on-surface font-bold tracking-tight">14</div>
+<div class="text-[12px] text-tertiary font-medium mt-4 pt-4 border-t border-white/[0.05]">3 requiring attention</div></div>
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow"><div class="flex justify-between items-start mb-4"><div class="text-[11px] text-custom-text-muted font-bold uppercase tracking-widest opacity-70">RISK INDEX</div></div>
+<div class="font-h3 text-[32px] leading-tight text-on-surface font-bold uppercase tracking-tight">Low</div>
+<div class="text-[12px] text-[#E5FD17] font-medium mt-4 pt-4 border-t border-white/[0.05] flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-[#E5FD17] animate-pulse"></span>
+    All systems stable
+</div></div>
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow"><div class="flex justify-between items-start mb-4"><div class="text-[11px] text-custom-text-muted font-bold uppercase tracking-widest opacity-70">CAPACITY</div></div>
+<div class="font-h3 text-[32px] leading-tight text-on-surface font-bold tracking-tight">86%</div>
+<div class="text-[12px] text-custom-text-muted font-medium mt-4 pt-4 border-t border-white/[0.05]">Optimal range</div></div>
+</div>
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow flex flex-col h-[280px]"><div class="flex justify-between items-center mb-8 px-2">
+<div class="flex items-center gap-6">
+<div class="text-[12px] font-bold text-on-surface uppercase tracking-widest opacity-70">Signal Flow</div>
+<div class="font-mono-data text-[10px] text-primary/50 uppercase tracking-tighter bg-primary/10 px-2 py-1 rounded">[LATENCY: 12ms]</div>
+</div>
+<div class="flex gap-6 text-[11px] text-custom-text-muted font-bold uppercase tracking-wider">
+<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary shadow-[0_0_8px_#bec2ff]"></span>Revenue</span>
+<span class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-white/30"></span>Goal</span>
+</div>
+</div>
+<div class="flex-1 rounded-xl bg-[#070708]/80 border border-white/[0.03] relative overflow-hidden">
+<!-- Faint Horizontal Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between py-4 opacity-[0.03]">
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+</div>
+<!-- Vertical Grid -->
+<div class="absolute inset-0 grid grid-cols-6 h-full w-full opacity-[0.03]">
+<div class="border-r border-white"></div>
+<div class="border-r border-white"></div>
+<div class="border-r border-white"></div>
+<div class="border-r border-white"></div>
+<div class="border-r border-white"></div>
+</div>
+<svg class="absolute bottom-0 w-full h-[85%]" preserveaspectratio="none" viewbox="0 0 100 100">
+<defs>
+<lineargradient id="gradient-flow-v3" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#5E6BFF" stop-opacity="0.2"></stop>
+<stop offset="100%" stop-color="#5E6BFF" stop-opacity="0"></stop>
+</lineargradient>
+<filter height="140%" id="glow" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="1"></fegaussianblur>
+<fecomposite in="SourceGraphic" in2="blur" operator="over"></fecomposite>
+</filter>
+</defs>
+<!-- Area Fill -->
+<path d="M0,80 C20,78 35,85 50,65 C65,45 80,30 100,25 L100,100 L0,100 Z" fill="url(#gradient-flow-v3)"></path>
+<!-- Main Line -->
+<path d="M0,80 C20,78 35,85 50,65 C65,45 80,30 100,25" fill="none" filter="url(#glow)" stroke="#5E6BFF" stroke-linecap="round" stroke-width="0.75"></path>
+<!-- Data Points -->
+<circle cx="20" cy="78" fill="#5E6BFF" r="1.5"></circle>
+<circle cx="50" cy="65" fill="white" r="2" stroke="#5E6BFF" stroke-width="1"></circle>
+<circle cx="80" cy="30" fill="#5E6BFF" r="1.5"></circle>
+</svg>
+<!-- Axis Labels -->
+<div class="absolute bottom-2 right-3 font-mono-data text-[9px] text-custom-text-muted/40 uppercase">t: 127.4s</div>
+<div class="absolute top-3 left-3 font-mono-data text-[9px] text-custom-text-muted/40 uppercase">y: $V</div>
+</div></div>
+<div class="grid grid-cols-2 gap-8">
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow">
+<div class="text-body-md font-bold text-on-surface border-b border-white/[0.05] pb-4 mb-4">Focus queue</div>
+<div class="space-y-4">
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface">Review Q3 Budget</span>
+<span class="text-tertiary bg-tertiary/10 px-2.5 py-1 rounded text-[11px] font-bold tracking-wider">URGENT</span>
+</div>
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface">Approve Vendor Contract</span>
+<span class="text-custom-text-muted text-[11px] font-medium tracking-wider">TODAY</span>
+</div>
+</div>
+</div>
+<div class="bg-[#121315] border border-white/[0.05] rounded-2xl p-6 inner-glow">
+<div class="text-body-md font-bold text-on-surface border-b border-white/[0.05] pb-4 mb-4">Approval pipeline</div>
+<div class="space-y-4 pt-2">
+<div class="h-2 bg-white/[0.04] rounded-full w-full overflow-hidden">
+<div class="h-full bg-primary rounded-full w-3/4"></div>
+</div>
+<div class="text-label-sm text-custom-text-muted flex justify-between items-center">
+<span class="font-medium">75% completed this week</span>
+<span class="text-primary font-bold">12/16</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel -->
+<div class="w-[380px] bg-[#0d0e0f] border-l border-white/[0.05] p-8 flex flex-col gap-8 relative z-10 shadow-[-10px_0_30px_rgba(0,0,0,0.5)]">
+<div class="text-[14px] font-bold text-on-surface border-b border-white/[0.05] pb-6 mb-2 flex justify-between items-center px-1">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-secondary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] text-secondary">bolt</span>
+</div>
+        Romer Intelligence
+    </div>
+<span class="w-2 h-2 rounded-full bg-secondary shadow-[0_0_10px_#50d8e9] animate-pulse"></span>
+</div>
+<div class="flex flex-col gap-10 px-1">
+<div class="space-y-4">
+<div class="text-[11px] font-bold text-custom-text-muted uppercase tracking-widest opacity-60">Recommended Action</div>
+<div class="bg-white/[0.02] border border-white/[0.04] rounded-xl p-5 text-body-md text-on-surface leading-relaxed shadow-sm">
+            Reallocate resources to <span class="text-primary font-bold">Project Alpha</span> to mitigate Q4 delivery risk.
+        </div>
+</div>
+<div class="space-y-4">
+<div class="text-[11px] font-bold text-custom-text-muted uppercase tracking-widest opacity-60">Signal summary</div>
+<div class="bg-white/[0.02] border border-white/[0.04] rounded-xl p-5 text-body-md text-on-surface leading-relaxed shadow-sm">
+            Revenue trends <span class="text-secondary font-medium">positive (+12%)</span>, but capacity constraints emerging in engineering teams.
+        </div>
+</div>
+<div class="flex flex-col gap-4 flex-1">
+<div class="text-[11px] font-bold text-custom-text-muted uppercase tracking-widest opacity-60">Decision log</div>
+<div class="space-y-3 overflow-y-auto pr-2">
+<div class="group flex items-start gap-4 p-3 hover:bg-white/[0.02] rounded-xl transition-colors border border-transparent hover:border-white/[0.05]">
+<div class="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0 shadow-[0_0_8px_#bec2ff]"></div>
+<div>
+<div class="text-[13px] text-on-surface font-semibold mb-1">Budget Approved</div>
+<div class="text-[12px] text-custom-text-muted opacity-80">2h ago • Finance Team</div>
+</div>
+</div>
+<div class="group flex items-start gap-4 p-3 hover:bg-white/[0.02] rounded-xl transition-colors border border-transparent hover:border-white/[0.05]">
+<div class="w-2 h-2 rounded-full bg-white/20 mt-2 flex-shrink-0"></div>
+<div>
+<div class="text-[13px] text-on-surface opacity-80 font-medium mb-1">Contract Signed</div>
+<div class="text-[12px] text-custom-text-muted opacity-80">5h ago • Legal Ops</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Recommendation Card -->
+<div class="mt-auto relative w-full bg-[#16171a]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 shadow-2xl z-20 inner-glow">
+<div class="flex items-center justify-between mb-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-full bg-tertiary/15 flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] text-tertiary font-bold">priority_high</span>
+</div>
+<span class="text-[14px] font-bold text-on-surface tracking-tight">Blocking Approval</span>
+</div>
+<span class="text-[10px] text-tertiary/80 uppercase font-bold tracking-widest bg-tertiary/10 px-2 py-1 rounded">High priority</span>
+</div>
+<div class="text-body-md text-on-surface/90 mb-6 leading-relaxed font-medium">
+        Q3 Budget reallocation requires immediate sign-off to unlock hiring for the new product phase.
+    </div>
+<button class="w-full bg-primary text-[#000469] py-3.5 rounded-xl text-[14px] font-bold shadow-lg shadow-primary/20 hover:brightness-110 transition-all hover:scale-[1.02]">
+        Review Submission
+    </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. Product Principle -->
+<section class="px-margin-safe flex flex-col justify-center items-center relative overflow-hidden py-32 border-t border-white/[0.05]">
+<div class="max-w-[1516px] w-full mx-auto">
+<h2 class="font-h2 text-[56px] leading-[1.1] text-center text-on-surface mb-32 max-w-4xl mx-auto tracking-tight">Operating rhythm, simplified. The architecture of a focused team.</h2>
+<div class="grid grid-cols-3 gap-12">
+<!-- Card 1 -->
+<div class="border border-white/[0.05] rounded-3xl p-8 bg-[#0a0a0b] relative h-[480px] flex flex-col transition-transform hover:-translate-y-2 duration-300">
+<div class="font-mono-data text-custom-text-muted mb-8 text-[11px] tracking-widest">FIG 0.1 / UNIFIED VIEW</div>
+<div class="flex-1 border border-white/[0.03] rounded-2xl bg-[#0d0e0f] flex items-center justify-center p-6"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<rect height="160" rx="4" stroke="#232426" stroke-width="0.5" width="160" x="20" y="20"></rect>
+<line stroke="#232426" stroke-width="0.5" x1="60" x2="60" y1="20" y2="180"></line>
+<rect height="40" rx="2" stroke="#5E6BFF" stroke-width="0.75" width="100" x="70" y="30"></rect>
+<rect height="90" rx="2" stroke="#232426" stroke-width="0.5" width="100" x="70" y="80"></rect>
+<text fill="#454655" font-family="monospace" font-size="6" x="75" y="45">SEC_ALPHA</text>
+<text fill="#454655" font-family="monospace" font-size="6" x="75" y="95">SEC_BETA</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="25" y="30">LAYER_0</text>
+</svg>
+<div class="absolute bottom-4 right-4 font-mono-data text-[9px] text-custom-text-muted opacity-40">COORD: 34.22 // 11.08</div>
+</div></div>
+</div>
+<!-- Card 2 -->
+<div class="border border-white/[0.05] rounded-3xl p-8 bg-[#0a0a0b] relative h-[480px] flex flex-col transition-transform hover:-translate-y-2 duration-300">
+<div class="font-mono-data text-custom-text-muted mb-8 text-[11px] tracking-widest">FIG 0.2 / DECISION GRAPH</div>
+<div class="flex-1 border border-white/[0.03] rounded-2xl bg-[#0d0e0f] flex items-center justify-center p-6"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<circle cx="100" cy="100" r="40" stroke="#50d8e9" stroke-width="0.5"></circle>
+<circle cx="40" cy="40" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="160" cy="40" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="160" cy="160" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="40" cy="160" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<!-- Dotted lines -->
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="47" x2="71" y1="47" y2="71"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="153" x2="129" y1="47" y2="71"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="153" x2="129" y1="153" y2="129"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="47" x2="71" y1="153" y2="129"></line>
+<!-- Tiny nodes at intersections -->
+<rect fill="#50d8e9" height="2" width="2" x="70" y="70"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="128" y="70"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="128" y="128"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="70" y="128"></rect>
+<text fill="#454655" font-family="monospace" font-size="6" x="90" y="103">ROOT_V1</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="40" y="30">ND_01</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="155" y="30">ND_02</text>
+</svg>
+<div class="absolute top-4 left-4 font-mono-data text-[9px] text-custom-text-muted opacity-40">REL_MAP: SYNC</div>
+</div></div>
+</div>
+<!-- Card 3 -->
+<div class="border border-white/[0.05] rounded-3xl p-8 bg-[#0a0a0b] relative h-[480px] flex flex-col transition-transform hover:-translate-y-2 duration-300">
+<div class="font-mono-data text-custom-text-muted mb-8 text-[11px] tracking-widest">FIG 0.3 / AUTOMATED RHYTHM</div>
+<div class="flex-1 border border-white/[0.03] rounded-2xl bg-[#0d0e0f] flex items-center justify-center p-6"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<!-- Sine wave -->
+<path d="M20,100 Q60,20 100,100 T180,100" fill="none" stroke="#E5FD17" stroke-width="0.75"></path>
+<!-- Vertical dashed line at focal point -->
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="100" x2="100" y1="20" y2="180"></line>
+<circle cx="100" cy="100" fill="#E5FD17" r="3"></circle>
+<!-- Axis indicators -->
+<text fill="#454655" font-family="monospace" font-size="8" x="185" y="105">t</text>
+<text fill="#454655" font-family="monospace" font-size="8" x="105" y="25">v</text>
+<!-- Technical Callout -->
+<text fill="#E5FD17" font-family="monospace" font-size="6" x="108" y="98">[100, 100]</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="108" y="106">SYNC_EVENT</text>
+</svg>
+<div class="absolute bottom-4 right-4 font-mono-data text-[9px] text-custom-text-muted opacity-40">FREQ: 440HZ // AMPL: 1.0</div>
+</div></div>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. Signal Intelligence -->
+<section class="px-margin-safe border-t border-white/[0.05] flex items-center relative py-40">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-32 items-center">
+<div class="pr-12">
+<h2 class="font-h2 text-[56px] leading-[1.1] text-on-surface mb-10 tracking-tight">Turn signals into focus</h2>
+<p class="font-body-lg text-[22px] text-custom-text-muted leading-relaxed">Aggregate noise from across your tools into a single, structured signal stream. Romer identifies anomalies and surfaces what matters.</p>
+</div>
+<div class="relative h-[680px] w-full">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-white/[0.05] rounded-3xl overflow-hidden p-12">
+<div class="text-mono-data text-custom-text-muted mb-6 border-b border-white/[0.05] pb-4 tracking-widest text-[11px] uppercase">Customer Pulse</div>
+<div class="space-y-2 mb-12">
+<div class="flex justify-between text-[15px] text-on-surface py-4 border-b border-white/[0.03]"><span class="w-1/3 font-medium">Acme Corp</span><span class="w-1/3 text-custom-text-muted">Renewal Risk</span><span class="w-1/3 text-right text-[#ffb4ab] font-medium">High</span></div>
+<div class="flex justify-between text-[15px] text-on-surface py-4 border-b border-white/[0.03]"><span class="w-1/3 font-medium">Globex</span><span class="w-1/3 text-custom-text-muted">Expansion</span><span class="w-1/3 text-right text-[#50d8e9] font-medium">Low</span></div>
+</div>
+<div class="text-mono-data text-custom-text-muted mb-6 border-b border-white/[0.05] pb-4 mt-12 tracking-widest text-[11px] uppercase">Revenue</div>
+<div class="space-y-2">
+<div class="flex justify-between text-[15px] text-on-surface py-4 border-b border-white/[0.03]"><span class="w-1/3 font-medium">Q3 Target</span><span class="w-1/3 text-custom-text-muted">Pacing</span><span class="w-1/3 text-right text-[#E5FD17] font-medium">On Track</span></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -left-16 top-1/4 w-[400px] bg-[#16171a]/95 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] z-10 inner-glow">
+<div class="text-[14px] font-bold text-on-surface mb-6 flex items-center gap-3 border-b border-white/[0.05] pb-4"><span class="material-symbols-outlined text-[20px] text-primary">forum</span> Signal Thread</div>
+<div class="text-[16px] text-on-surface/90 leading-relaxed mb-8">Acme Corp usage dropped 15%. Recommend engaging CS.</div>
+<div class="flex gap-4">
+<button class="flex-1 bg-white/[0.03] border border-white/[0.05] hover:bg-white/[0.05] text-on-surface px-4 py-3 rounded-xl text-[14px] font-medium transition-colors">Assign</button>
+<button class="flex-1 bg-primary text-[#000469] px-4 py-3 rounded-xl text-[14px] font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform">Acknowledge</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 6. Decision Command Center -->
+<section class="px-margin-safe border-t border-white/[0.05] flex items-center relative py-40">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-32 items-center">
+<div class="relative h-[680px] w-full order-2 md:order-1">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-white/[0.05] rounded-3xl overflow-hidden p-12">
+<div class="flex justify-between text-mono-data text-custom-text-muted mb-12 border-b border-white/[0.05] pb-6 tracking-widest text-[11px] uppercase px-4">
+<span class="">Aug</span><span class="">Sep</span><span class="">Oct</span><span class="">Nov</span>
+</div>
+<div class="relative h-full px-4">
+<div class="absolute top-8 left-[10%] w-[40%] h-12 bg-white/[0.03] rounded-xl border border-white/[0.05] flex items-center px-4 text-[14px] text-on-surface font-medium hover:bg-white/[0.05] transition-colors cursor-pointer">Budget Reset</div>
+<div class="absolute top-28 left-[30%] w-[50%] h-12 bg-white/[0.03] rounded-xl border border-white/[0.05] flex items-center px-4 text-[14px] text-on-surface font-medium hover:bg-white/[0.05] transition-colors cursor-pointer">Partner Terms</div>
+<!-- Timeline markers -->
+<div class="absolute top-0 left-[25%] w-px h-full bg-white/[0.03]"></div>
+<div class="absolute top-0 left-[50%] w-px h-full bg-white/[0.03]"></div>
+<div class="absolute top-0 left-[75%] w-px h-full bg-white/[0.03]"></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -right-16 bottom-1/4 w-[400px] bg-[#16171a]/95 backdrop-blur-2xl border border-white/[0.08] rounded-2xl p-8 shadow-[0_30px_60px_rgba(0,0,0,0.5)] z-10 inner-glow">
+<div class="text-[14px] font-bold text-on-surface mb-6 flex items-center gap-3 border-b border-white/[0.05] pb-4"><span class="material-symbols-outlined text-[20px] text-secondary">rule</span> Decision Queue</div>
+<div class="space-y-2">
+<div class="flex justify-between items-center text-[15px] border-b border-white/[0.03] py-3"><span class="text-on-surface font-medium">Q4 OKRs</span> <button class="text-primary font-semibold text-[13px] hover:text-white transition-colors bg-primary/10 px-3 py-1.5 rounded-lg">Sign</button></div>
+<div class="flex justify-between items-center text-[15px] py-3"><span class="text-on-surface font-medium">Hiring Plan</span> <button class="text-primary font-semibold text-[13px] hover:text-white transition-colors bg-primary/10 px-3 py-1.5 rounded-lg">Sign</button></div>
+</div>
+</div>
+</div>
+<div class="order-1 md:order-2 pl-12">
+<h2 class="font-h2 text-[56px] leading-[1.1] text-on-surface mb-10 tracking-tight">Guide every decision forward</h2>
+<p class="font-body-lg text-[22px] text-custom-text-muted leading-relaxed">Map strategic decisions against operational timelines. Keep execution unblocked with clear ownership and context.</p>
+</div>
+</div>
+</section>
+<!-- 7. Insights Timeline -->
+<section class="px-margin-safe border-t border-white/[0.05] flex flex-col justify-center relative overflow-hidden py-40">
+<div class="max-w-[1516px] w-full mx-auto relative pt-12">
+<!-- Connecting Line -->
+<div class="absolute top-1/2 left-0 w-full h-px bg-white/[0.05] -z-10 mt-[-24px]"></div>
+<div class="grid grid-cols-4 gap-16">
+<!-- Node 1 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-5 h-5 rounded-full bg-primary mb-12 relative z-10 shadow-[0_0_20px_#bec2ff] border-4 border-[#070708]"></div>
+<h3 class="font-h4 text-[20px] text-on-surface mb-4">Approval cycles</h3>
+<p class="font-body-md text-[16px] text-custom-text-muted max-w-[280px]">Reduce bottlenecks in critical sign-offs.</p>
+</div>
+<!-- Node 2 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-4 h-4 rounded-full bg-[#1c1b1d] border-2 border-white/20 mb-12 mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-[20px] text-on-surface mb-4">Capacity forecast</h3>
+<p class="font-body-md text-[16px] text-custom-text-muted max-w-[280px]">Predict resource needs ahead of time.</p>
+</div>
+<!-- Node 3 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-4 h-4 rounded-full bg-[#1c1b1d] border-2 border-white/20 mb-12 mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-[20px] text-on-surface mb-4">Risk movement</h3>
+<p class="font-body-md text-[16px] text-custom-text-muted max-w-[280px]">Track shifting risk profiles continuously.</p>
+</div>
+<!-- Node 4 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-4 h-4 rounded-full bg-[#1c1b1d] border-2 border-white/20 mb-12 mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-[20px] text-on-surface mb-4">Operating rhythm</h3>
+<p class="font-body-md text-[16px] text-custom-text-muted max-w-[280px]">Establish a steady heartbeat for execution.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- 8. Customer Quotes -->
+<section class="px-margin-safe border-t border-white/[0.05] flex items-center py-40 bg-[#070708]">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-5 gap-12">
+<!-- Left Quote -->
+<div class="col-span-3 bg-[#D1EBEB] rounded-[32px] p-16 flex flex-col justify-between h-[560px]">
+<p class="font-h2 text-[48px] text-black leading-[1.1] max-w-2xl tracking-tight">"Romer finally gave our leadership team a unified lens. The signal-to-noise ratio is exactly what we needed to operate faster."</p>
+<div class="mt-12">
+<div class="font-bold text-black font-body-lg text-[20px]">Mara Chen</div>
+<div class="text-black/70 font-body-md text-[16px] mt-1">COO, Northline</div>
+</div>
+</div>
+<!-- Right Quote -->
+<div class="col-span-2 bg-[#C4FF44] rounded-[32px] p-16 flex flex-col justify-between h-[560px]">
+<p class="font-h3 text-[36px] text-black leading-[1.1] tracking-tight">"It replaced three separate dashboards and endless status meetings."</p>
+<div class="mt-12">
+<div class="font-bold text-black font-body-lg text-[20px]">Ivo Patel</div>
+<div class="text-black/70 font-body-md text-[16px] mt-1">VP Operations, Meridian</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 9. Final CTA -->
+<section class="px-margin-safe border-t border-white/[0.05] flex flex-col justify-center items-center text-center py-48">
+<div class="max-w-3xl">
+<h2 class="font-h1 text-[72px] leading-[1.05] tracking-tight text-on-surface mb-16">Built for clarity.<br/>Ready today.</h2>
+<div class="flex justify-center gap-6">
+<button class="bg-white text-black px-10 py-4 rounded-full font-body-lg font-medium shadow-sm hover:scale-105 transition-transform text-[18px]">Start free trial</button>
+<button class="bg-transparent border border-white/[0.1] text-on-surface px-10 py-4 rounded-full font-body-lg hover:bg-white/5 transition-colors text-[18px]">Contact sales</button>
+</div>
+</div>
+</section>
+<!-- 10. Footer -->
+<footer class="bg-[#0a0a0b] border-t border-white/[0.05] flex flex-col justify-between px-margin-safe pt-32 pb-16">
+<div class="max-w-[1728px] w-full mx-auto grid grid-cols-2 md:grid-cols-6 gap-16 mb-24">
+<div class="col-span-2 pr-12">
+<div class="flex items-center gap-3 mb-8">
+<div class="w-8 h-8 rounded-full border border-white/20 flex items-center justify-center text-on-surface font-h3 font-bold text-[14px]">R</div>
+<span class="font-h3 text-[24px] font-bold text-on-surface tracking-tight">Romer</span>
+</div>
+<p class="text-body-lg text-custom-text-muted max-w-sm">The operating layer for focused teams.</p>
+</div>
+<div class="flex flex-col gap-5">
+<div class="font-mono-data text-on-surface font-medium mb-2 text-[12px] tracking-widest uppercase">PRODUCT</div>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Overview</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Features</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Security</a>
+</div>
+<div class="flex flex-col gap-5">
+<div class="font-mono-data text-on-surface font-medium mb-2 text-[12px] tracking-widest uppercase">PLATFORM</div>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Integrations</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">API</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Status</a>
+</div>
+<div class="flex flex-col gap-5">
+<div class="font-mono-data text-on-surface font-medium mb-2 text-[12px] tracking-widest uppercase">COMPANY</div>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">About</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Careers</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Blog</a>
+</div>
+<div class="flex flex-col gap-5">
+<div class="font-mono-data text-on-surface font-medium mb-2 text-[12px] tracking-widest uppercase">RESOURCES</div>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Documentation</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Guides</a>
+<a class="font-body-md text-[15px] text-custom-text-muted hover:text-white transition-colors" href="#">Help Center</a>
+</div>
+</div>
+<div class="max-w-[1728px] w-full mx-auto flex justify-between items-center border-t border-white/[0.05] pt-12 mt-auto">
+<div class="font-mono-data text-custom-text-muted text-[13px]">© 2024 Romer Inc. All rights reserved.</div>
+<div class="flex gap-8">
+<a class="font-mono-data text-custom-text-muted text-[13px] hover:text-white transition-colors" href="#">Privacy Policy</a>
+<a class="font-mono-data text-custom-text-muted text-[13px] hover:text-white transition-colors" href="#">Terms of Service</a>
+</div>
+</div>
+</footer>
+</main>
+</body></html>

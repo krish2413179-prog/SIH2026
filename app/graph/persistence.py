@@ -44,9 +44,22 @@ async def save_graph(
     )
     existing = result.scalars().first()
 
+    # Trim heavy per-node attributes that bloat the JSONB payload before serializing.
+    # We keep the attributes the frontend and risk engine actually use; raw tx lists
+    # (which can be hundreds of KB per node) are dropped.
+    _KEEP_NODE_ATTRS = {
+        "entity_type", "label", "vasp_name", "risk_score", "risk_band",
+        "cluster_id", "balance", "chain", "first_seen", "last_seen",
+        "llm_score", "llm_label", "llm_reason", "llm_flags",
+        "is_seed", "hop",
+    }
+    for _, attrs in G.nodes(data=True):
+        for key in list(attrs.keys()):
+            if key not in _KEEP_NODE_ATTRS:
+                del attrs[key]
+
     # Serialize graph — convert Decimal and datetime to JSON-safe types
     import json
-    from decimal import Decimal
     raw_data = json_graph.node_link_data(G)
     # Use json round-trip with a default serializer to handle Decimal/datetime
     graph_data = json.loads(json.dumps(raw_data, default=str))

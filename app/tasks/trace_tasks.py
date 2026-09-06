@@ -55,10 +55,10 @@ def _get_trace_job_model():
     name="tasks.trace.run_trace",
     bind=True,
     max_retries=3,
-    # 7-minute soft timeout so Celery doesn't kill a trace that's near the
-    # 5-minute deadline but still writing results to the DB.
-    soft_time_limit=420,
-    time_limit=480,
+    # BFS deadline: 180s. VASP match + graph save budget: ~240s.
+    # Soft limit fires at 450s; hard kill at 540s.
+    soft_time_limit=450,
+    time_limit=540,
 )
 def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
     """Full blockchain trace for the given TraceJob.
@@ -83,6 +83,7 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
 
             job.status = "running"
             job.started_at = datetime.now(timezone.utc)
+            job.estimated_pct = 5.0
             db.flush()
             db.commit()
 
@@ -92,14 +93,38 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
             from app.graph.builder import build_graph
 
             async def _build_and_save() -> object:
+                async def _persist_hop(hop: int) -> None:
+                    """Write current_hop to DB synchronously; safe to call from async context."""
+                    try:
+                        # Use a fresh sync session on a thread pool to avoid blocking the event loop
+                        import concurrent.futures
+                        def _sync_write():
+                            with SyncSession() as _db:
+                                from sqlalchemy import update
+                                _db.execute(
+                                    update(TraceJob)
+                                    .where(TraceJob.id == job_uuid)
+                                    .values(
+                                        current_hop=hop,
+                                        estimated_pct=min(99.0, round(hop / max(job.max_hops, 1) * 90, 1))
+                                    )
+                                )
+                                _db.commit()
+                        loop = asyncio.get_event_loop()
+                        await loop.run_in_executor(None, _sync_write)
+                    except Exception:
+                        logger.warning("run_trace: failed to persist hop %d", hop, exc_info=True)
+
                 G = await build_graph(
                     seed_address=job.wallet_address,
                     chain=job.chain,
                     adapter=adapter,
                     max_hops=job.max_hops,
-                    # ── new params ─────────────────────────────────────
-                    min_nodes=20,
-                    deadline_seconds=300.0,
+                    min_nodes=200,
+                    deadline_seconds=180.0,
+                    max_frontier_size=25,
+                    max_per_address=50,
+                    persist_hop_fn=_persist_hop,
                 )
 
                 # ── Intel Tagging & Nearest VASP Identification ──────
@@ -361,6 +386,7 @@ def _make_async_engine_session():
         pool_pre_ping=True,
         pool_size=2,
         max_overflow=5,
+        connect_args={"statement_cache_size": 0},
     )
     AsyncSessionLocal = sa_sessionmaker(
         bind=engine,

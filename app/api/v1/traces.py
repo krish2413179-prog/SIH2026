@@ -4,6 +4,7 @@ Endpoints
 ---------
 GET  /traces/{trace_id}/graph            — serialised graph JSON
 GET  /traces/{trace_id}/status           — trace job progress + risk fields
+GET  /traces/{trace_id}/live-feed        — last N addresses being fetched live
 POST /traces/{trace_id}/expand           — queue an expand_graph Celery task
 GET  /traces/{trace_id}/expand/status    — poll expand task result
 POST /traces/{trace_id}/ai-analysis      — Mistral generative fraud analysis
@@ -13,6 +14,8 @@ Requirements: 5.5, 15.4
 """
 from __future__ import annotations
 
+import os
+import re
 import uuid
 from typing import Annotated, Any
 
@@ -26,6 +29,72 @@ from app.db.session import get_db
 from app.graph.models import TraceGraph, TraceJob
 
 router = APIRouter(prefix="/traces", tags=["traces"])
+
+# ---------------------------------------------------------------------------
+# GET /traces/{trace_id}/live-feed
+# ---------------------------------------------------------------------------
+
+# Matches lines like:
+#   [2026-09-05 19:05:12,095: INFO/ForkPoolWorker-7] HTTP Request: GET
+#   https://api.etherscan.io/...&address=0xABCD...&...
+_ADDR_RE = re.compile(r"&address=(0x[0-9a-fA-F]{10,}|[A-Za-z0-9]{26,})", re.IGNORECASE)
+_CELERY_LOG = os.path.join(os.path.dirname(__file__), "..", "..", "..", "celery-linux.log")
+
+
+def _tail_log(path: str, n_bytes: int = 65536) -> str:
+    """Read the last *n_bytes* of a file safely."""
+    try:
+        with open(path, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - n_bytes))
+            return f.read().decode("utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+@router.get("/{trace_id}/live-feed", summary="Live address feed for loading screen")
+async def get_live_feed(
+    trace_id: uuid.UUID,
+    current_user: Annotated[User, Depends(require_investigator)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    limit: int = 20,
+) -> dict[str, Any]:
+    """Return the most-recently-fetched addresses from the active Celery worker.
+
+    Tails the Celery log and extracts Etherscan/Solscan/etc. API calls made
+    while processing this trace.  Returns up to *limit* unique addresses in
+    reverse-chronological order (newest first).
+
+    Also returns a ``hop`` and ``status`` field so the frontend can update
+    its progress display without an extra round-trip.
+    """
+    # Get current trace status
+    result = await db.execute(select(TraceJob).where(TraceJob.id == trace_id))
+    job = result.scalars().first()
+    if job is None:
+        raise HTTPException(status_code=404, detail="Trace not found")
+
+    addresses: list[str] = []
+    if job.status == "running":
+        tail = _tail_log(_CELERY_LOG)
+        # Extract addresses, deduplicate preserving order (newest first)
+        seen: set[str] = set()
+        for match in reversed(_ADDR_RE.findall(tail)):
+            addr = match
+            if addr not in seen:
+                seen.add(addr)
+                addresses.append(addr)
+            if len(addresses) >= limit:
+                break
+
+    return {
+        "trace_id": str(trace_id),
+        "status": job.status,
+        "current_hop": job.current_hop,
+        "estimated_pct": job.estimated_pct,
+        "addresses": addresses,
+    }
 
 
 # ---------------------------------------------------------------------------

@@ -1,0 +1,686 @@
+<html class="dark" lang="en" style=""><head></head><body class="font-body-md antialiased selection:bg-custom-btn-primary selection:text-white">```html
+
+
+
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Romer - The command dashboard for focused teams</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;520;600;700&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e0e0ff",
+                        "on-primary": "#000ba6",
+                        "tertiary-fixed-dim": "#ffb689",
+                        "secondary-fixed": "#92f1ff",
+                        "secondary-container": "#00b1c2",
+                        "on-tertiary-fixed": "#311300",
+                        "background": "#131314",
+                        "primary": "#bec2ff",
+                        "on-secondary-container": "#003e44",
+                        "tertiary": "#ffb689",
+                        "on-background": "#e5e2e3",
+                        "error": "#ffb4ab",
+                        "primary-container": "#7a85ff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "surface-tint": "#bec2ff",
+                        "on-secondary-fixed": "#001f23",
+                        "on-secondary": "#00363c",
+                        "on-surface": "#e5e2e3",
+                        "on-tertiary-fixed-variant": "#743500",
+                        "on-primary-fixed-variant": "#1f2bc8",
+                        "surface-dim": "#131314",
+                        "on-primary-fixed": "#000469",
+                        "outline": "#8f8fa1",
+                        "inverse-on-surface": "#313031",
+                        "surface-container": "#201f21",
+                        "secondary": "#50d8e9",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#131314",
+                        "inverse-surface": "#e5e2e3",
+                        "on-primary-container": "#000992",
+                        "surface-container-lowest": "#0e0e0f",
+                        "outline-variant": "#454655",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353436",
+                        "tertiary-fixed": "#ffdbc8",
+                        "surface-variant": "#353436",
+                        "on-tertiary": "#512300",
+                        "tertiary-container": "#e0731d",
+                        "on-surface-variant": "#c6c5d8",
+                        "surface-bright": "#3a393a",
+                        "on-tertiary-container": "#471e00",
+                        "surface-container-high": "#2a2a2b",
+                        "surface-container-low": "#1c1b1d",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#50d8e9",
+                        "inverse-primary": "#3d4ae0",
+                        "on-secondary-fixed-variant": "#004f57",
+                        "custom-bg": "#070708",
+                        "custom-divider": "#232426",
+                        "custom-card-bg": "#101112",
+                        "custom-sidebar": "#0d0e0f",
+                        "custom-panel": "#111214",
+                        "custom-text-muted": "#9A9DA3",
+                        "custom-btn-primary": "#5E6BFF",
+                        "custom-btn-text": "#F0F1F2",
+                        "custom-divider-light": "#1B1C1E"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "gutter": "20px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "margin-safe": "32px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Manrope"],
+                        "h2": ["Manrope"],
+                        "body-md": ["Inter"],
+                        "h4": ["Manrope"],
+                        "body-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "h1": ["Manrope"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["24px", { "lineHeight": "1.2", "letterSpacing": "-0.04em", "fontWeight": "520" }],
+                        "h2": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "body-md": ["14px", { "lineHeight": "1.5", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "h4": ["18px", { "lineHeight": "1.4", "letterSpacing": "-0.02em", "fontWeight": "520" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-data": ["13px", { "lineHeight": "1", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+                        "h1": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "hero-headline": ["76px", { "lineHeight": "1.1", "letterSpacing": "-0.055em", "fontWeight": "520" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #070708; color: #e5e2e3; }
+        .glass-panel { background: rgba(16, 17, 18, 0.8); backdrop-filter: blur(20px); }
+        .inner-glow { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1); }
+        .thin-border { border: 1px solid #232426; }
+    </style>
+<style>.dot-pattern { background-image: radial-gradient(#232426 1px, transparent 1px); background-size: 16px 16px; }</style>
+<!-- 1. Fixed Header -->
+<header class="bg-custom-bg w-full top-0 h-[80px] border-b border-custom-divider z-50 fixed">
+<div class="flex justify-between items-center w-full px-margin-safe max-w-[1728px] mx-auto h-full">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full border border-custom-text-muted flex items-center justify-center text-on-surface font-h3 font-bold">R</div>
+<span class="font-h3 text-h3 font-bold tracking-tight text-on-surface">Romer</span>
+</div>
+<nav class="hidden md:flex gap-lg h-full items-center">
+<a class="font-body-md text-body-md text-primary border-b-2 border-primary pb-1 hover:text-primary transition-colors duration-200" href="#">Platform</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Dashboards</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Customers</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Pricing</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Resources</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Contact</a>
+</nav>
+<div class="flex gap-md">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200 px-md py-sm rounded border border-custom-divider" href="#">Log in</a>
+<a class="font-body-md text-body-md bg-white text-black px-md py-sm rounded hover:bg-opacity-90 transition-colors duration-200 font-bold" href="#">Start free</a>
+</div>
+</div>
+</header>
+<main class="max-w-[1728px] mx-auto mt-[80px]">
+<!-- 2. Hero & 3. Hero Dashboard Mockup -->
+<section class="px-margin-safe relative pt-32 pb-20">
+<div class="max-w-[1516px] mx-auto">
+<div class="flex justify-between items-end mb-xl">
+<div class="">
+<h1 class="font-h3 text-hero-headline text-on-surface mb-md max-w-[1000px]">The command dashboard<br/>for focused teams</h1>
+<p class="font-body-lg text-[19px] text-custom-text-muted mb-lg max-w-2xl">Romer turns scattered signals, approvals, and operating data into one calm dashboard for leadership teams.</p>
+<div class="flex gap-md">
+<button class="bg-white text-black px-lg py-md rounded font-body-lg font-bold">Get started</button>
+<button class="bg-[#1a1b1d] border border-custom-divider text-on-surface px-lg py-md rounded font-body-lg hover:bg-custom-card-bg transition-colors">Book a demo</button>
+</div>
+</div>
+<div class="hidden lg:block text-right pb-sm">
+<a class="text-custom-text-muted font-mono-data hover:text-primary flex items-center gap-xs" href="#">Live operating layer romer.app/overview <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+</div>
+</div>
+<!-- Hero Dashboard Mockup -->
+<div class="w-full bg-custom-card-bg rounded-xl border overflow-hidden flex h-[620px] inner-glow shadow-2xl relative border-white/[0.05]">
+<!-- Sidebar -->
+<div class="w-64 bg-custom-sidebar border-r border-custom-divider p-6 flex flex-col gap-sm">
+<div class="text-[10px] text-custom-text-muted uppercase tracking-[0.2em] mb-6 px-4 opacity-40 font-bold font-mono-data">Navigation</div>
+<div class="flex flex-col gap-1">
+<div class="flex items-center gap-3 px-4 py-2 bg-white/[0.04] rounded-lg text-on-surface font-medium cursor-pointer transition-colors border border-white/[0.05]">
+<span class="material-symbols-outlined text-[18px]">grid_view</span>
+<span class="text-body-md">Overview</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">sensors</span>
+<span class="text-body-md">Signals</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">check_circle</span>
+<span class="text-body-md">Approvals</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">bar_chart</span>
+<span class="text-body-md">Metrics</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">warning</span>
+<span class="text-body-md">Risks</span>
+</div>
+<div class="mt-4 flex flex-col gap-1">
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">group</span>
+<span class="text-body-md">Teams</span>
+</div>
+<div class="flex items-center gap-3 px-4 py-2 text-custom-text-muted hover:text-on-surface hover:bg-white/[0.04] rounded-lg cursor-pointer transition-colors group">
+<span class="material-symbols-outlined text-[18px] opacity-40 group-hover:opacity-100">article</span>
+<span class="text-body-md">Reports</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Center Area -->
+<div class="flex-1 p-6 flex flex-col gap-5 bg-[#0a0a0b] relative overflow-y-auto">
+<div class="flex justify-between items-center pb-2 border-b border-white/[0.05]">
+<div class="flex items-center gap-2">
+<span class="w-2 h-2 rounded-full bg-secondary animate-pulse"></span>
+<span class="font-mono-data text-xs text-secondary uppercase tracking-widest font-bold">System Live</span>
+</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted uppercase tracking-widest">LAST UPDATED: <span class="text-on-surface">Just now</span></div>
+</div>
+<div class="bg-custom-card-bg border border-white/[0.05] rounded-xl p-6 inner-glow flex flex-col h-[280px]">
+<div class="flex justify-between items-center mb-6">
+<div class="flex items-center gap-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-[20px] text-secondary">monitoring</span>
+<span class="font-mono-data text-xs font-bold text-on-surface uppercase tracking-widest">System Health &amp; Performance</span>
+</div>
+<div class="h-4 w-px bg-white/10"></div>
+<div class="flex gap-4">
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-secondary"></div>
+<span class="font-mono-data text-[10px] text-custom-text-muted uppercase">Latency (ms)</span>
+</div>
+<div class="flex items-center gap-1.5">
+<div class="w-2 h-2 rounded-full bg-primary"></div>
+<span class="font-mono-data text-[10px] text-custom-text-muted uppercase">System Load</span>
+</div>
+</div>
+</div>
+<div class="flex gap-2">
+<span class="text-[10px] font-mono-data bg-white/[0.05] px-2 py-1 rounded text-custom-text-muted">1H</span>
+<span class="text-[10px] font-mono-data bg-secondary/20 px-2 py-1 rounded text-secondary font-bold">6H</span>
+<span class="text-[10px] font-mono-data bg-white/[0.05] px-2 py-1 rounded text-custom-text-muted">24H</span>
+</div>
+</div>
+<div class="flex-1 relative">
+<!-- Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between opacity-[0.05]">
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+<div class="border-t border-white w-full"></div>
+</div>
+<svg class="absolute inset-0 w-full h-full" preserveaspectratio="none" viewbox="0 0 1000 200">
+<defs>
+<lineargradient id="grad-latency" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#50d8e9" stop-opacity="0.1"></stop>
+<stop offset="100%" stop-color="#50d8e9" stop-opacity="0"></stop>
+</lineargradient>
+<lineargradient id="grad-load" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#bec2ff" stop-opacity="0.1"></stop>
+<stop offset="100%" stop-color="#bec2ff" stop-opacity="0"></stop>
+</lineargradient>
+</defs>
+<!-- Load Area & Line (Primary Color) -->
+<path d="M0,160 Q100,150 200,170 T400,140 T600,155 T800,130 T1000,145 L1000,200 L0,200 Z" fill="url(#grad-load)"></path>
+<path d="M0,160 Q100,150 200,170 T400,140 T600,155 T800,130 T1000,145" fill="none" stroke="#bec2ff" stroke-opacity="0.6" stroke-width="1.5"></path>
+<!-- Latency Area & Line (Secondary Color) -->
+<path d="M0,100 Q150,80 300,110 T500,70 T750,95 T1000,60 L1000,200 L0,200 Z" fill="url(#grad-latency)"></path>
+<path d="M0,100 Q150,80 300,110 T500,70 T750,95 T1000,60" fill="none" stroke="#50d8e9" stroke-width="2"></path>
+<!-- Current Indicator -->
+<line stroke="white" stroke-dasharray="4" stroke-opacity="0.2" x1="850" x2="850" y1="0" y2="200"></line>
+<circle cx="850" cy="82" fill="#50d8e9" r="4"></circle>
+<circle cx="850" cy="82" fill="none" r="8" stroke="#50d8e9" stroke-opacity="0.3"></circle>
+</svg>
+<!-- Axis Labels -->
+<div class="absolute bottom-[-15px] left-0 right-0 flex justify-between font-mono-data text-[8px] text-custom-text-muted uppercase tracking-widest">
+<span>12:00 PM</span>
+<span>02:00 PM</span>
+<span>04:00 PM</span>
+<span>06:00 PM</span>
+<span class="text-on-surface">08:00 PM (NOW)</span>
+</div>
+</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded-xl p-4 inner-glow flex flex-col h-[200px]"><div class="flex justify-between items-center mb-4 px-1">
+<div class="flex items-center gap-4">
+<div class="font-mono-data text-[10px] font-bold text-on-surface uppercase tracking-widest opacity-60">Signal Flow</div>
+<div class="font-mono-data text-[9px] text-primary/40 uppercase tracking-tighter">[LATENCY: 12ms]</div>
+</div>
+<div class="flex gap-4 text-[10px] text-custom-text-muted font-bold uppercase tracking-wider font-mono-data">
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-primary"></span>Revenue</span>
+<span class="flex items-center gap-1.5"><span class="w-1.5 h-1.5 rounded-full bg-white/40"></span>Goal</span>
+</div>
+</div>
+<div class="flex-1 rounded-lg bg-[#070708]/50 border border-white/[0.02] relative overflow-hidden">
+<!-- Horizontal Grid Lines -->
+<div class="absolute inset-0 flex flex-col justify-between py-1 opacity-[0.15]">
+<div class="border-t border-white/[0.1] w-full"></div>
+<div class="border-t border-white/[0.1] w-full"></div>
+<div class="border-t border-white/[0.1] w-full"></div>
+<div class="border-t border-white/[0.1] w-full"></div>
+<div class="border-t border-white/[0.1] w-full"></div>
+<div class="border-t border-white/[0.1] w-full"></div>
+</div>
+<!-- Vertical Grid -->
+<div class="absolute inset-0 grid grid-cols-10 h-full w-full opacity-30">
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+<div class="border-r border-white/[0.05]"></div>
+</div>
+<svg class="absolute bottom-0 w-full h-[80%]" preserveaspectratio="none" viewbox="0 0 100 100">
+<defs>
+<lineargradient id="gradient-flow-v3" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" stop-color="#5E6BFF" stop-opacity="0.25"></stop>
+<stop offset="100%" stop-color="#5E6BFF" stop-opacity="0"></stop>
+</lineargradient>
+<filter height="140%" id="glow" width="140%" x="-20%" y="-20%">
+<fegaussianblur result="blur" stddeviation="1.5"></fegaussianblur>
+<fecomposite in="SourceGraphic" in2="blur" operator="over"></fecomposite>
+</filter>
+</defs>
+<!-- Area Fill Main -->
+<path d="M0,80 C15,75 25,85 40,65 C55,45 65,55 80,30 C90,15 95,20 100,10 L100,100 L0,100 Z" fill="url(#gradient-flow-v3)"></path>
+<!-- Secondary Line (Goal) -->
+<path d="M0,60 C20,55 35,65 50,45 C65,25 80,35 100,15" fill="none" stroke="rgba(255,255,255,0.4)" stroke-dasharray="2,2" stroke-width="0.5"></path>
+<!-- Main Line -->
+<path d="M0,80 C15,75 25,85 40,65 C55,45 65,55 80,30 C90,15 95,20 100,10" fill="none" filter="url(#glow)" stroke="#5E6BFF" stroke-linecap="round" stroke-width="1.5"></path>
+<!-- Data Points Main -->
+<circle cx="15" cy="76" fill="#5E6BFF" r="1.5"></circle>
+<circle cx="40" cy="65" fill="white" r="2" stroke="#5E6BFF" stroke-width="0.5"></circle>
+<circle cx="65" cy="48" fill="#5E6BFF" r="1.5"></circle>
+<circle cx="80" cy="30" fill="white" r="2" stroke="#5E6BFF" stroke-width="0.5"></circle>
+<circle cx="95" cy="13" fill="#5E6BFF" r="1.5"></circle>
+<!-- Data Points Secondary -->
+<circle cx="20" cy="56" fill="rgba(255,255,255,0.6)" r="1"></circle>
+<circle cx="50" cy="45" fill="rgba(255,255,255,0.6)" r="1"></circle>
+<circle cx="80" cy="31" fill="rgba(255,255,255,0.6)" r="1"></circle>
+</svg>
+<!-- Axis Labels -->
+<div class="absolute bottom-1 right-2 font-mono-data text-[8px] text-custom-text-muted/40 uppercase">t: 127.4s</div>
+<div class="absolute top-2 left-2 font-mono-data text-[8px] text-custom-text-muted/40 uppercase">y: $V</div>
+</div></div>
+<div class="grid grid-cols-2 gap-4">
+<div class="bg-custom-card-bg border border-custom-divider rounded-xl p-4 inner-glow">
+<div class="font-mono-data text-xs font-bold text-on-surface border-b border-white/[0.05] pb-2 mb-3 uppercase tracking-wider">Focus queue</div>
+<div class="space-y-2.5">
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface text-sm">Review Q3 Budget</span>
+<span class="text-tertiary bg-tertiary/10 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono-data">URGENT</span>
+</div>
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface text-sm">Approve Vendor Contract</span>
+<span class="text-custom-text-muted text-[10px] font-mono-data">TODAY</span>
+</div>
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface text-sm">Resolve Node Outage</span>
+<span class="text-secondary bg-secondary/10 px-1.5 py-0.5 rounded text-[10px] font-bold font-mono-data">ACTIVE</span>
+</div>
+<div class="flex justify-between items-center text-body-md">
+<span class="text-on-surface text-sm">Update Security Policy</span>
+<span class="text-custom-text-muted text-[10px] font-mono-data">Q3</span>
+</div>
+</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded-xl p-4 inner-glow">
+<div class="font-mono-data text-xs font-bold text-on-surface border-b border-white/[0.05] pb-2 mb-3 uppercase tracking-wider">Approval pipeline</div>
+<div class="space-y-3 pt-1">
+<div>
+<div class="h-1.5 bg-white/[0.05] rounded-full w-full overflow-hidden mb-1.5">
+<div class="h-full bg-primary rounded-full w-3/4"></div>
+</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted flex justify-between">
+<span>75% completed</span>
+<span class="text-primary font-bold">12/16</span>
+</div>
+</div>
+<div>
+<div class="h-1.5 bg-white/[0.05] rounded-full w-full overflow-hidden mb-1.5">
+<div class="h-full bg-secondary rounded-full w-1/3"></div>
+</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted flex justify-between">
+<span>Budget Sign-offs</span>
+<span class="text-secondary font-bold">2/6</span>
+</div>
+</div>
+<div>
+<div class="h-1.5 bg-white/[0.05] rounded-full w-full overflow-hidden mb-1.5">
+<div class="h-full bg-tertiary rounded-full w-full"></div>
+</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted flex justify-between">
+<span>Hiring Reqs</span>
+<span class="text-tertiary font-bold">4/4</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel -->
+<div class="w-[340px] bg-custom-panel border-l border-custom-divider p-6 flex flex-col gap-6 relative">
+<div class="text-body-md font-bold text-on-surface border-b border-white/[0.05] pb-5 mb-2 flex justify-between items-center px-1">
+<div class="flex items-center gap-2.5">
+<span class="material-symbols-outlined text-[20px] text-secondary">bolt</span>
+<span class="font-mono-data text-sm uppercase tracking-wide">Romer Intelligence</span>
+</div>
+<span class="w-1.5 h-1.5 rounded-full bg-secondary animate-pulse"></span>
+</div>
+<div class="flex flex-col gap-8 px-1">
+<div class="space-y-3">
+<div class="text-[10px] font-bold text-custom-text-muted uppercase tracking-widest opacity-50 font-mono-data">Recommended Action</div>
+<div class="bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 text-body-md text-on-surface leading-relaxed shadow-sm">
+            Reallocate resources to <span class="text-primary font-bold">Project Alpha</span> to mitigate Q4 delivery risk.
+        </div>
+</div>
+<div class="space-y-3">
+<div class="text-[10px] font-bold text-custom-text-muted uppercase tracking-widest opacity-50 font-mono-data">Signal summary</div>
+<div class="bg-white/[0.03] border border-white/[0.05] rounded-xl p-4 text-body-md text-on-surface leading-relaxed shadow-sm">
+            Revenue trends <span class="text-secondary font-medium">positive (+12%)</span>, but capacity constraints emerging in engineering teams.
+        </div>
+</div>
+<div class="flex flex-col gap-3 flex-1">
+<div class="text-[10px] font-bold text-custom-text-muted uppercase tracking-widest opacity-50 font-mono-data">Decision log</div>
+<div class="space-y-2 overflow-y-auto pr-1">
+<div class="group flex items-start gap-4 p-2.5 hover:bg-white/[0.02] rounded-lg transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-primary mt-2 flex-shrink-0"></div>
+<div>
+<div class="text-label-sm text-on-surface font-medium">Budget Approved</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted mt-1 opacity-70">2h ago • Finance Team</div>
+</div>
+</div>
+<div class="group flex items-start gap-4 p-2.5 hover:bg-white/[0.02] rounded-lg transition-colors">
+<div class="w-1.5 h-1.5 rounded-full bg-white/20 mt-2 flex-shrink-0"></div>
+<div>
+<div class="text-label-sm text-on-surface opacity-80 font-medium">Contract Signed</div>
+<div class="font-mono-data text-[10px] text-custom-text-muted mt-1 opacity-70">5h ago • Legal Ops</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Floating Recommendation Card - Now in flow to avoid overlap -->
+<div class="mt-auto relative w-full glass-panel border border-white/[0.1] rounded-xl p-5 shadow-2xl z-20 inner-glow">
+<div class="flex items-center justify-between mb-4">
+<div class="flex items-center gap-3">
+<div class="w-7 h-7 rounded-full bg-tertiary/10 flex items-center justify-center">
+<span class="material-symbols-outlined text-[16px] text-tertiary font-bold">priority_high</span>
+</div>
+<span class="text-label-sm font-bold text-on-surface tracking-tight font-mono-data uppercase">Blocking Approval</span>
+</div>
+<span class="text-[10px] text-custom-text-muted uppercase font-bold tracking-wider font-mono-data">High priority</span>
+</div>
+<div class="text-body-md text-on-surface mb-5 leading-relaxed font-medium">
+        Q3 Budget reallocation requires immediate sign-off to unlock hiring for the new product phase.
+    </div>
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg text-label-sm font-bold shadow-lg shadow-primary/20 hover:brightness-110 transition-all font-mono-data uppercase tracking-wider">
+        Review Submission
+    </button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. Product Principle -->
+<section class="px-margin-safe border-t border-custom-divider flex flex-col justify-center items-center relative overflow-hidden py-20">
+<div class="max-w-[1516px] w-full mx-auto">
+<h2 class="font-h2 text-h1 text-center text-on-surface mb-24 max-w-4xl mx-auto">Operating rhythm, simplified. The architecture of a focused team.</h2>
+<div class="grid grid-cols-3 gap-xl">
+<!-- Card 1 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.1 / UNIFIED VIEW</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<rect height="160" rx="2" stroke="#232426" stroke-width="0.5" width="160" x="20" y="20"></rect>
+<line stroke="#232426" stroke-width="0.5" x1="60" x2="60" y1="20" y2="180"></line>
+<rect height="40" rx="1" stroke="#5E6BFF" stroke-width="0.75" width="100" x="70" y="30"></rect>
+<rect height="90" rx="1" stroke="#232426" stroke-width="0.5" width="100" x="70" y="80"></rect>
+<text fill="#454655" font-family="monospace" font-size="6" x="75" y="45">SEC_ALPHA</text>
+<text fill="#454655" font-family="monospace" font-size="6" x="75" y="95">SEC_BETA</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="25" y="30">LAYER_0</text>
+</svg>
+<div class="absolute bottom-2 right-2 font-mono-data text-[8px] text-custom-text-muted opacity-40">COORD: 34.22 // 11.08</div>
+</div></div>
+</div>
+<!-- Card 2 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.2 / DECISION GRAPH</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<circle cx="100" cy="100" r="40" stroke="#50d8e9" stroke-width="0.5"></circle>
+<circle cx="40" cy="40" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="160" cy="40" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="160" cy="160" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<circle cx="40" cy="160" r="8" stroke="#232426" stroke-width="0.5"></circle>
+<!-- Dotted lines -->
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="47" x2="71" y1="47" y2="71"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="153" x2="129" y1="47" y2="71"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="153" x2="129" y1="153" y2="129"></line>
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="47" x2="71" y1="153" y2="129"></line>
+<!-- Tiny nodes at intersections -->
+<rect fill="#50d8e9" height="2" width="2" x="70" y="70"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="128" y="70"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="128" y="128"></rect>
+<rect fill="#50d8e9" height="2" width="2" x="70" y="128"></rect>
+<text fill="#454655" font-family="monospace" font-size="6" x="90" y="103">ROOT_V1</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="40" y="30">ND_01</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="155" y="30">ND_02</text>
+</svg>
+<div class="absolute top-2 left-2 font-mono-data text-[8px] text-custom-text-muted opacity-40">REL_MAP: SYNC</div>
+</div></div>
+</div>
+<!-- Card 3 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.3 / AUTOMATED RHYTHM</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md"><div class="w-full h-full dot-pattern flex items-center justify-center relative">
+<svg fill="none" height="80%" viewbox="0 0 200 200" width="80%" xmlns="http://www.w3.org/2000/svg">
+<!-- Sine wave -->
+<path d="M20,100 Q60,20 100,100 T180,100" fill="none" stroke="#E5FD17" stroke-width="0.75"></path>
+<!-- Vertical dashed line at focal point -->
+<line stroke="#454655" stroke-dasharray="2 2" stroke-width="0.5" x1="100" x2="100" y1="20" y2="180"></line>
+<circle cx="100" cy="100" fill="#E5FD17" r="3"></circle>
+<!-- Axis indicators -->
+<text fill="#454655" font-family="monospace" font-size="8" x="185" y="105">t</text>
+<text fill="#454655" font-family="monospace" font-size="8" x="105" y="25">v</text>
+<!-- Technical Callout -->
+<text fill="#E5FD17" font-family="monospace" font-size="6" x="108" y="98">[100, 100]</text>
+<text fill="#454655" font-family="monospace" font-size="5" x="108" y="106">SYNC_EVENT</text>
+</svg>
+<div class="absolute bottom-2 right-2 font-mono-data text-[8px] text-custom-text-muted opacity-40">FREQ: 440HZ // AMPL: 1.0</div>
+</div></div>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. Signal Intelligence -->
+<section class="px-margin-safe border-t border-custom-divider flex items-center relative py-20">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-24 items-center">
+<div>
+<h2 class="font-h2 text-h1 text-on-surface mb-lg">Turn signals into focus</h2>
+<p class="font-body-lg text-[20px] text-custom-text-muted leading-relaxed">Aggregate noise from across your tools into a single, structured signal stream. Romer identifies anomalies and surfaces what matters.</p>
+</div>
+<div class="relative h-[600px] w-full">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-custom-divider rounded-xl overflow-hidden p-md">
+<div class="text-mono-data text-custom-text-muted mb-sm border-b border-custom-divider pb-2">Customer Pulse</div>
+<div class="space-y-xs mb-md">
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Acme Corp</span><span class="w-1/3 text-custom-text-muted">Renewal Risk</span><span class="w-1/3 text-right text-[#ffb689]">High</span></div>
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Globex</span><span class="w-1/3 text-custom-text-muted">Expansion</span><span class="w-1/3 text-right text-[#50d8e9]">Low</span></div>
+</div>
+<div class="text-mono-data text-custom-text-muted mb-sm border-b border-custom-divider pb-2 mt-lg">Revenue</div>
+<div class="space-y-xs">
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Q3 Target</span><span class="w-1/3 text-custom-text-muted">Pacing</span><span class="w-1/3 text-right text-[#E5FD17]">On Track</span></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -left-12 top-1/4 w-80 glass-panel border border-custom-divider rounded-lg p-lg shadow-2xl z-10">
+<div class="text-label-sm font-bold text-on-surface mb-sm flex items-center gap-2"><span class="material-symbols-outlined text-[16px] text-[#5E6BFF]">forum</span> Signal Thread</div>
+<div class="text-body-md text-custom-text-muted mb-md">Acme Corp usage dropped 15%. Recommend engaging CS.</div>
+<div class="flex gap-2">
+<button class="bg-[#232426] text-on-surface px-sm py-xs rounded text-label-sm">Assign</button>
+<button class="bg-[#5E6BFF] text-white px-sm py-xs rounded text-label-sm">Acknowledge</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 6. Decision Command Center -->
+<section class="px-margin-safe border-t border-custom-divider flex items-center relative py-20">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-24 items-center">
+<div class="relative h-[600px] w-full order-2 md:order-1">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-custom-divider rounded-xl overflow-hidden p-lg">
+<div class="flex justify-between text-mono-data text-custom-text-muted mb-lg border-b border-custom-divider pb-2">
+<span class="">Aug</span><span class="">Sep</span><span class="">Oct</span><span class="">Nov</span>
+</div>
+<div class="relative h-full">
+<div class="absolute top-10 left-[10%] w-[40%] h-8 bg-[#232426] rounded border border-custom-divider flex items-center px-sm text-label-sm text-on-surface">Budget Reset</div>
+<div class="absolute top-24 left-[30%] w-[50%] h-8 bg-[#232426] rounded border border-custom-divider flex items-center px-sm text-label-sm text-on-surface">Partner Terms</div>
+<!-- Timeline markers -->
+<div class="absolute top-0 left-[25%] w-px h-full bg-custom-divider"></div>
+<div class="absolute top-0 left-[50%] w-px h-full bg-custom-divider"></div>
+<div class="absolute top-0 left-[75%] w-px h-full bg-custom-divider"></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -right-12 bottom-1/4 w-80 glass-panel border border-custom-divider rounded-lg p-lg shadow-2xl z-10">
+<div class="text-label-sm font-bold text-on-surface mb-sm flex items-center gap-2"><span class="material-symbols-outlined text-[16px] text-[#50d8e9]">rule</span> Decision Queue</div>
+<div class="space-y-sm">
+<div class="flex justify-between items-center text-body-md border-b border-custom-divider pb-2"><span class="text-on-surface">Q4 OKRs</span> <button class="text-[#5E6BFF] text-label-sm">Sign</button></div>
+<div class="flex justify-between items-center text-body-md"><span class="text-on-surface">Hiring Plan</span> <button class="text-[#5E6BFF] text-label-sm">Sign</button></div>
+</div>
+</div>
+</div>
+<div class="order-1 md:order-2">
+<h2 class="font-h2 text-h1 text-on-surface mb-lg">Guide every decision forward</h2>
+<p class="font-body-lg text-[20px] text-custom-text-muted leading-relaxed">Map strategic decisions against operational timelines. Keep execution unblocked with clear ownership and context.</p>
+</div>
+</div>
+</section>
+<!-- 7. Insights Timeline -->
+<section class="px-margin-safe border-t border-custom-divider flex flex-col justify-center relative overflow-hidden py-20">
+<div class="max-w-[1516px] w-full mx-auto relative pt-24">
+<!-- Connecting Line -->
+<div class="absolute top-1/2 left-0 w-full h-px bg-custom-divider -z-10"></div>
+<div class="grid grid-cols-4 gap-xl">
+<!-- Node 1 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-4 h-4 rounded-full bg-[#5E6BFF] mb-lg relative z-10 shadow-[0_0_15px_#5E6BFF]"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Approval cycles</h3>
+<p class="font-body-md text-custom-text-muted">Reduce bottlenecks in critical sign-offs.</p>
+</div>
+<!-- Node 2 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Capacity forecast</h3>
+<p class="font-body-md text-custom-text-muted">Predict resource needs ahead of time.</p>
+</div>
+<!-- Node 3 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Risk movement</h3>
+<p class="font-body-md text-custom-text-muted">Track shifting risk profiles continuously.</p>
+</div>
+<!-- Node 4 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Operating rhythm</h3>
+<p class="font-body-md text-custom-text-muted">Establish a steady heartbeat for execution.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- 8. Customer Quotes -->
+<section class="px-margin-safe border-t border-custom-divider flex items-center bg-[#050505] py-20">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-5 gap-lg">
+<!-- Left Quote -->
+<div class="col-span-3 bg-[#D1EBEB] rounded-2xl p-xl flex flex-col justify-between h-[480px]">
+<p class="font-h2 text-h2 text-black leading-tight max-w-2xl">"Romer finally gave our leadership team a unified lens. The signal-to-noise ratio is exactly what we needed to operate faster."</p>
+<div>
+<div class="font-bold text-black font-body-lg">Mara Chen</div>
+<div class="text-black/70 font-body-md">COO, Northline</div>
+</div>
+</div>
+<!-- Right Quote -->
+<div class="col-span-2 bg-[#C4FF44] rounded-2xl p-xl flex flex-col justify-between h-[480px]">
+<p class="font-h3 text-h3 text-black leading-tight">"It replaced three separate dashboards and endless status meetings."</p>
+<div>
+<div class="font-bold text-black font-body-lg">Ivo Patel</div>
+<div class="text-black/70 font-body-md">VP Operations, Meridian</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 9. Final CTA -->
+<section class="px-margin-safe border-t border-custom-divider flex flex-col justify-center items-center text-center py-20">
+<div class="max-w-2xl">
+<h2 class="font-h1 text-hero-headline text-on-surface mb-lg">Built for clarity.<br/>Ready today.</h2>
+<div class="flex justify-center gap-md">
+<button class="bg-white text-black px-xl py-md rounded font-body-lg font-bold">Start free trial</button>
+<button class="bg-transparent border border-custom-divider text-on-surface px-xl py-md rounded font-body-lg hover:bg-[#1a1b1d] transition-colors">Contact sales</button>
+</div>
+</div>
+</section>
+<!-- 10. Footer -->
+<footer class="bg-custom-sidebar border-t border-custom-divider flex flex-col justify-between px-margin-safe pt-24 pb-12">
+<div class="max-w-[1728px] w-full mx-auto grid grid-cols-2 md:grid-cols-6 gap-xl">
+<div class="col-span-2">
+<div class="flex items-center gap-sm mb-lg">
+<div class="w-6 h-6 rounded-full border border-custom-text-muted flex items-center justify-center text-on-surface font-h3 font-bold text-[12px]">R</div>
+<span class="font-h3 text-h4 font-bold text-on-surface">Romer</span>
+</div>
+<p class="text-body-md text-custom-text-muted max-w-xs">The operating layer for focused teams.</p>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">PRODUCT</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Overview</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Features</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Security</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">PLATFORM</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Integrations</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">API</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Status</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">COMPANY</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">About</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Careers</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Blog</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">RESOURCES</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Documentation</a>
+</div></div></footer></main></body></html>

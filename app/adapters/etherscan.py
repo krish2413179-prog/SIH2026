@@ -100,11 +100,29 @@ class EtherscanAdapter(BlockchainAdapter):
             logger.warning("%s: could not fetch native txs for %s", self.chain, address)
             return []
 
+        # Rate-limit guard: Etherscan returns status=0 with a message containing
+        # 'rate limit' when the API key quota is exceeded.  Raise so the caller
+        # can back off and retry rather than silently returning empty results.
+        if data.get("status") == "0" and "rate limit" in (data.get("message") or "").lower():
+            logger.error(
+                "%s native txlist rate-limited for %s: message=%s — "
+                "backing off. This will cause incomplete traces.",
+                self.chain, address[:12], data.get("message"),
+            )
+            raise DataUnavailableError(
+                f"{self.chain} native txlist rate-limited: {data.get('message')}"
+            )
+
         if data.get("status") != "1":
             msg = data.get("message", "")
-            if msg == "No transactions found" or data.get("result") == []:
+            result_preview = str(data.get("result", ""))[:120]
+            if msg in ("No transactions found", "") or data.get("result") == [] or result_preview == "[]":
                 return []
-            logger.warning("%s native txlist status=%s msg=%s", self.chain, data.get("status"), msg)
+            logger.error(
+                "%s native txlist FAILED for %s: status=%s message=%s result_preview=%s — "
+                "check API key and V2 endpoint. This will cause incomplete traces.",
+                self.chain, address[:12], data.get("status"), msg, result_preview,
+            )
             return []
 
         result = data.get("result") or []
@@ -173,12 +191,27 @@ class EtherscanAdapter(BlockchainAdapter):
             logger.debug("%s: could not fetch token txs for %s", self.chain, address)
             return []
 
+        # Rate-limit guard: same pattern as native txlist.
+        if data.get("status") == "0" and "rate limit" in (data.get("message") or "").lower():
+            logger.error(
+                "%s tokentx rate-limited for %s: message=%s — "
+                "backing off. This will cause incomplete traces.",
+                self.chain, address[:12], data.get("message"),
+            )
+            raise DataUnavailableError(
+                f"{self.chain} tokentx rate-limited: {data.get('message')}"
+            )
+
         if data.get("status") != "1":
             msg = data.get("message", "")
-            if msg in ("No transactions found", "No token transfers found") or data.get("result") == []:
+            result_preview = str(data.get("result", ""))[:120]
+            if msg in ("No transactions found", "No token transfers found", "") or data.get("result") == [] or result_preview == "[]":
                 return []
-            # Log at debug — many wallets have no token transfers at all
-            logger.debug("%s tokentx status=%s msg=%s", self.chain, data.get("status"), msg)
+            logger.error(
+                "%s tokentx FAILED for %s: status=%s message=%s result_preview=%s — "
+                "check API key and V2 endpoint. This will cause incomplete traces.",
+                self.chain, address[:12], data.get("status"), msg, result_preview,
+            )
             return []
 
         result = data.get("result") or []

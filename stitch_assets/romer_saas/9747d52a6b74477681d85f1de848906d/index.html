@@ -1,0 +1,481 @@
+<!DOCTYPE html><html class="dark" lang="en" style=""><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0" name="viewport">
+<title>Romer - The command dashboard for focused teams</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;520;600;700&amp;family=Inter:wght@400;500;600&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "primary-fixed": "#e0e0ff",
+                        "on-primary": "#000ba6",
+                        "tertiary-fixed-dim": "#ffb689",
+                        "secondary-fixed": "#92f1ff",
+                        "secondary-container": "#00b1c2",
+                        "on-tertiary-fixed": "#311300",
+                        "background": "#131314",
+                        "primary": "#bec2ff",
+                        "on-secondary-container": "#003e44",
+                        "tertiary": "#ffb689",
+                        "on-background": "#e5e2e3",
+                        "error": "#ffb4ab",
+                        "primary-container": "#7a85ff",
+                        "primary-fixed-dim": "#bec2ff",
+                        "surface-tint": "#bec2ff",
+                        "on-secondary-fixed": "#001f23",
+                        "on-secondary": "#00363c",
+                        "on-surface": "#e5e2e3",
+                        "on-tertiary-fixed-variant": "#743500",
+                        "on-primary-fixed-variant": "#1f2bc8",
+                        "surface-dim": "#131314",
+                        "on-primary-fixed": "#000469",
+                        "outline": "#8f8fa1",
+                        "inverse-on-surface": "#313031",
+                        "surface-container": "#201f21",
+                        "secondary": "#50d8e9",
+                        "on-error-container": "#ffdad6",
+                        "surface": "#131314",
+                        "inverse-surface": "#e5e2e3",
+                        "on-primary-container": "#000992",
+                        "surface-container-lowest": "#0e0e0f",
+                        "outline-variant": "#454655",
+                        "on-error": "#690005",
+                        "surface-container-highest": "#353436",
+                        "tertiary-fixed": "#ffdbc8",
+                        "surface-variant": "#353436",
+                        "on-tertiary": "#512300",
+                        "tertiary-container": "#e0731d",
+                        "on-surface-variant": "#c6c5d8",
+                        "surface-bright": "#3a393a",
+                        "on-tertiary-container": "#471e00",
+                        "surface-container-high": "#2a2a2b",
+                        "surface-container-low": "#1c1b1d",
+                        "error-container": "#93000a",
+                        "secondary-fixed-dim": "#50d8e9",
+                        "inverse-primary": "#3d4ae0",
+                        "on-secondary-fixed-variant": "#004f57",
+                        "custom-bg": "#070708",
+                        "custom-divider": "#232426",
+                        "custom-card-bg": "#101112",
+                        "custom-sidebar": "#0d0e0f",
+                        "custom-panel": "#111214",
+                        "custom-text-muted": "#9A9DA3",
+                        "custom-btn-primary": "#5E6BFF",
+                        "custom-btn-text": "#F0F1F2",
+                        "custom-divider-light": "#1B1C1E"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.125rem",
+                        "lg": "0.25rem",
+                        "xl": "0.5rem",
+                        "full": "0.75rem"
+                    },
+                    "spacing": {
+                        "xl": "40px",
+                        "gutter": "20px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "base": "4px",
+                        "sm": "8px",
+                        "margin-safe": "32px",
+                        "xs": "4px"
+                    },
+                    "fontFamily": {
+                        "h3": ["Manrope"],
+                        "h2": ["Manrope"],
+                        "body-md": ["Inter"],
+                        "h4": ["Manrope"],
+                        "body-lg": ["Inter"],
+                        "mono-data": ["Inter"],
+                        "h1": ["Manrope"],
+                        "label-sm": ["Inter"]
+                    },
+                    "fontSize": {
+                        "h3": ["24px", { "lineHeight": "1.2", "letterSpacing": "-0.04em", "fontWeight": "520" }],
+                        "h2": ["32px", { "lineHeight": "1.2", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "body-md": ["14px", { "lineHeight": "1.5", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "h4": ["18px", { "lineHeight": "1.4", "letterSpacing": "-0.02em", "fontWeight": "520" }],
+                        "body-lg": ["16px", { "lineHeight": "1.6", "letterSpacing": "0em", "fontWeight": "400" }],
+                        "mono-data": ["13px", { "lineHeight": "1", "letterSpacing": "-0.01em", "fontWeight": "400" }],
+                        "h1": ["48px", { "lineHeight": "1.1", "letterSpacing": "-0.05em", "fontWeight": "520" }],
+                        "label-sm": ["12px", { "lineHeight": "1", "letterSpacing": "0.02em", "fontWeight": "500" }],
+                        "hero-headline": ["76px", { "lineHeight": "1.1", "letterSpacing": "-0.055em", "fontWeight": "520" }]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        body { background-color: #070708; color: #e5e2e3; }
+        .glass-panel { background: rgba(16, 17, 18, 0.8); backdrop-filter: blur(20px); }
+        .inner-glow { box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.1); }
+        .thin-border { border: 1px solid #232426; }
+    </style>
+</head>
+<body class="font-body-md antialiased selection:bg-custom-btn-primary selection:text-white">
+<!-- 1. Fixed Header -->
+<header class="bg-custom-bg w-full top-0 h-[80px] border-b border-custom-divider z-50 fixed">
+<div class="flex justify-between items-center w-full px-margin-safe max-w-[1728px] mx-auto h-full">
+<div class="flex items-center gap-sm">
+<div class="w-8 h-8 rounded-full border border-custom-text-muted flex items-center justify-center text-on-surface font-h3 font-bold">R</div>
+<span class="font-h3 text-h3 font-bold tracking-tight text-on-surface">Romer</span>
+</div>
+<nav class="hidden md:flex gap-lg h-full items-center">
+<a class="font-body-md text-body-md text-primary border-b-2 border-primary pb-1 hover:text-primary transition-colors duration-200" href="#">Platform</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Dashboards</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Customers</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Pricing</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Resources</a>
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200" href="#">Contact</a>
+</nav>
+<div class="flex gap-md">
+<a class="font-body-md text-body-md text-on-surface-variant hover:text-primary transition-colors duration-200 px-md py-sm rounded border border-custom-divider" href="#">Log in</a>
+<a class="font-body-md text-body-md bg-white text-black px-md py-sm rounded hover:bg-opacity-90 transition-colors duration-200 font-bold" href="#">Start free</a>
+</div>
+</div>
+</header>
+<main class="max-w-[1728px] mx-auto mt-[80px]">
+<!-- 2. Hero & 3. Hero Dashboard Mockup -->
+<section class="h-[980px] px-margin-safe pt-32 relative">
+<div class="max-w-[1516px] mx-auto">
+<div class="flex justify-between items-end mb-xl">
+<div class="max-w-3xl">
+<h1 class="font-h3 text-hero-headline text-on-surface mb-md">The command dashboard for focused teams</h1>
+<p class="font-body-lg text-[19px] text-custom-text-muted mb-lg max-w-2xl">Romer turns scattered signals, approvals, and operating data into one calm dashboard for leadership teams.</p>
+<div class="flex gap-md">
+<button class="bg-white text-black px-lg py-md rounded font-body-lg font-bold">Get started</button>
+<button class="bg-[#1a1b1d] border border-custom-divider text-on-surface px-lg py-md rounded font-body-lg hover:bg-custom-card-bg transition-colors">Book a demo</button>
+</div>
+</div>
+<div class="hidden lg:block text-right pb-sm">
+<a class="text-custom-text-muted font-mono-data hover:text-primary flex items-center gap-xs" href="#">Live operating layer romer.app/overview <span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+</div>
+</div>
+<!-- Hero Dashboard Mockup -->
+<div class="w-full bg-custom-card-bg rounded-xl border border-custom-divider overflow-hidden flex h-[620px] inner-glow shadow-2xl relative">
+<!-- Sidebar -->
+<div class="w-64 bg-custom-sidebar border-r border-custom-divider p-md flex flex-col gap-sm">
+<div class="text-label-sm text-custom-text-muted uppercase tracking-widest mb-sm">Menu</div>
+<div class="flex items-center gap-sm px-sm py-xs bg-custom-divider rounded text-on-surface"><span class="material-symbols-outlined text-[18px]">grid_view</span>Overview</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">sensors</span>Signals</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">check_circle</span>Approvals</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">bar_chart</span>Metrics</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">warning</span>Risks</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">group</span>Teams</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">article</span>Reports</div>
+<div class="flex items-center gap-sm px-sm py-xs text-custom-text-muted hover:text-on-surface"><span class="material-symbols-outlined text-[18px]">bolt</span>Automations</div>
+</div>
+<!-- Center Area -->
+<div class="flex-1 p-lg flex flex-col gap-lg bg-[#0a0a0b] relative overflow-y-auto">
+<div class="grid grid-cols-4 gap-md">
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-label-sm text-custom-text-muted mb-xs">Revenue Signal</div>
+<div class="font-h3 text-h3 text-on-surface">$2.4M</div>
+<div class="text-label-sm text-[#50d8e9] mt-xs">+12% vs last month</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-label-sm text-custom-text-muted mb-xs">Open Approvals</div>
+<div class="font-h3 text-h3 text-on-surface">14</div>
+<div class="text-label-sm text-[#ffb689] mt-xs">3 requiring attention</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-label-sm text-custom-text-muted mb-xs">Risk Index</div>
+<div class="font-h3 text-h3 text-on-surface">Low</div>
+<div class="text-label-sm text-[#E5FD17] mt-xs">All systems stable</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-label-sm text-custom-text-muted mb-xs">Capacity</div>
+<div class="font-h3 text-h3 text-on-surface">86%</div>
+<div class="text-label-sm text-custom-text-muted mt-xs">Optimal range</div>
+</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow flex flex-col h-[200px]">
+<div class="text-body-md font-bold text-on-surface border-b border-custom-divider pb-sm mb-md">Signal Flow</div>
+<div class="flex-1 rounded bg-[#070708] border border-custom-divider relative overflow-hidden">
+<svg class="absolute bottom-0 w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 100">
+<path d="M0,80 Q25,50 50,70 T100,40 L100,100 L0,100 Z" fill="none" stroke="#5E6BFF" stroke-width="0.5"></path>
+</svg>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-md">
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-body-md font-bold text-on-surface border-b border-custom-divider pb-sm mb-md">Focus queue</div>
+<div class="space-y-sm">
+<div class="flex justify-between items-center text-label-sm"><span class="text-on-surface">Review Q3 Budget</span><span class="text-[#ffb689]">Urgent</span></div>
+<div class="flex justify-between items-center text-label-sm"><span class="text-on-surface">Approve Vendor Contract</span><span class="text-custom-text-muted">Today</span></div>
+</div>
+</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-md inner-glow">
+<div class="text-body-md font-bold text-on-surface border-b border-custom-divider pb-sm mb-md">Approval pipeline</div>
+<div class="space-y-sm">
+<div class="h-2 bg-custom-divider rounded w-full"><div class="h-full bg-primary rounded w-3/4"></div></div>
+<div class="text-label-sm text-custom-text-muted">75% completed this week</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Panel -->
+<div class="w-80 bg-custom-panel border-l border-custom-divider p-md flex flex-col gap-md relative">
+<div class="text-body-md font-bold text-on-surface border-b border-custom-divider pb-sm flex justify-between items-center">
+                    Romer Intelligence
+                    <span class="w-2 h-2 rounded-full bg-[#50d8e9]"></span>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="text-label-sm text-custom-text-muted">Recommended Action</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-sm text-body-md text-on-surface">
+                        Reallocate resources to Project Alpha to mitigate risk.
+                    </div>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="text-label-sm text-custom-text-muted">Signal summary</div>
+<div class="bg-custom-card-bg border border-custom-divider rounded p-sm text-body-md text-on-surface">
+                        Revenue trends positive, but capacity constraints emerging in engineering.
+                    </div>
+</div>
+<div class="flex flex-col gap-sm flex-1">
+<div class="text-label-sm text-custom-text-muted">Decision log</div>
+<div class="space-y-sm overflow-y-auto">
+<div class="text-label-sm text-on-surface border-l-2 border-[#5E6BFF] pl-2 py-1">Budget Approved - 2h ago</div>
+<div class="text-label-sm text-on-surface border-l-2 border-custom-divider pl-2 py-1">Contract Signed - 5h ago</div>
+</div>
+</div>
+<!-- Floating Recommendation Card -->
+<div class="absolute -bottom-4 -left-12 w-80 glass-panel border border-custom-divider rounded-lg p-md shadow-2xl z-20 inner-glow">
+<div class="flex items-center gap-sm mb-sm">
+<span class="material-symbols-outlined text-[16px] text-[#ffb689]">warning</span>
+<span class="text-label-sm font-bold text-on-surface">Blocking Approval</span>
+</div>
+<div class="text-body-md text-on-surface mb-sm">Q3 Budget reallocation requires sign-off.</div>
+<button class="w-full bg-[#5E6BFF] text-white py-xs rounded text-label-sm">Review Now</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. Product Principle -->
+<section class="h-[900px] px-margin-safe border-t border-custom-divider flex flex-col justify-center items-center relative overflow-hidden">
+<div class="max-w-[1516px] w-full mx-auto">
+<h2 class="font-h2 text-h1 text-center text-on-surface mb-24 max-w-4xl mx-auto">Operating rhythm, simplified. The architecture of a focused team.</h2>
+<div class="grid grid-cols-3 gap-xl">
+<!-- Card 1 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.1 / UNIFIED VIEW</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md">
+<svg fill="none" height="100%" viewBox="0 0 200 200" width="100%" xmlns="http://www.w3.org/2000/svg">
+<rect height="160" rx="4" stroke="#232426" stroke-width="1" width="160" x="20" y="20"></rect>
+<line stroke="#232426" stroke-width="1" x1="60" x2="60" y1="20" y2="180"></line>
+<rect height="40" rx="2" stroke="#5E6BFF" stroke-width="1" width="100" x="70" y="30"></rect>
+<rect height="90" rx="2" stroke="#232426" stroke-width="1" width="100" x="70" y="80"></rect>
+</svg>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.2 / DECISION GRAPH</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md">
+<svg fill="none" height="100%" viewBox="0 0 200 200" width="100%" xmlns="http://www.w3.org/2000/svg">
+<circle cx="100" cy="100" r="40" stroke="#50d8e9" stroke-width="1"></circle>
+<circle cx="40" cy="40" r="10" stroke="#232426" stroke-width="1"></circle>
+<circle cx="160" cy="40" r="10" stroke="#232426" stroke-width="1"></circle>
+<circle cx="160" cy="160" r="10" stroke="#232426" stroke-width="1"></circle>
+<circle cx="40" cy="160" r="10" stroke="#232426" stroke-width="1"></circle>
+<line stroke="#232426" stroke-width="1" x1="47" x2="71" y1="47" y2="71"></line>
+<line stroke="#232426" stroke-width="1" x1="153" x2="129" y1="47" y2="71"></line>
+<line stroke="#232426" stroke-width="1" x1="153" x2="129" y1="153" y2="129"></line>
+<line stroke="#232426" stroke-width="1" x1="47" x2="71" y1="153" y2="129"></line>
+</svg>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="border border-custom-divider rounded-xl p-lg bg-custom-bg relative h-[400px] flex flex-col">
+<div class="font-mono-data text-custom-text-muted mb-md text-xs">FIG 0.3 / AUTOMATED RHYTHM</div>
+<div class="flex-1 border border-custom-divider rounded-lg bg-[#0a0a0b] flex items-center justify-center p-md">
+<svg fill="none" height="100%" viewBox="0 0 200 200" width="100%" xmlns="http://www.w3.org/2000/svg">
+<path d="M20,100 Q60,20 100,100 T180,100" fill="none" stroke="#E5FD17" stroke-width="1"></path>
+<circle cx="100" cy="100" fill="#E5FD17" r="4"></circle>
+<line stroke="#232426" stroke-dasharray="4 4" stroke-width="1" x1="100" x2="100" y1="100" y2="180"></line>
+</svg>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. Signal Intelligence -->
+<section class="h-[900px] px-margin-safe border-t border-custom-divider flex items-center relative">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-24 items-center">
+<div>
+<h2 class="font-h2 text-h1 text-on-surface mb-lg">Turn signals into focus</h2>
+<p class="font-body-lg text-[20px] text-custom-text-muted leading-relaxed">Aggregate noise from across your tools into a single, structured signal stream. Romer identifies anomalies and surfaces what matters.</p>
+</div>
+<div class="relative h-[600px] w-full">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-custom-divider rounded-xl overflow-hidden p-md">
+<div class="text-mono-data text-custom-text-muted mb-sm border-b border-custom-divider pb-2">Customer Pulse</div>
+<div class="space-y-xs mb-md">
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Acme Corp</span><span class="w-1/3 text-custom-text-muted">Renewal Risk</span><span class="w-1/3 text-right text-[#ffb689]">High</span></div>
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Globex</span><span class="w-1/3 text-custom-text-muted">Expansion</span><span class="w-1/3 text-right text-[#50d8e9]">Low</span></div>
+</div>
+<div class="text-mono-data text-custom-text-muted mb-sm border-b border-custom-divider pb-2 mt-lg">Revenue</div>
+<div class="space-y-xs">
+<div class="flex justify-between text-body-md text-on-surface py-sm border-b border-custom-divider"><span class="w-1/3">Q3 Target</span><span class="w-1/3 text-custom-text-muted">Pacing</span><span class="w-1/3 text-right text-[#E5FD17]">On Track</span></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -left-12 top-1/4 w-80 glass-panel border border-custom-divider rounded-lg p-lg shadow-2xl z-10">
+<div class="text-label-sm font-bold text-on-surface mb-sm flex items-center gap-2"><span class="material-symbols-outlined text-[16px] text-[#5E6BFF]">forum</span> Signal Thread</div>
+<div class="text-body-md text-custom-text-muted mb-md">Acme Corp usage dropped 15%. Recommend engaging CS.</div>
+<div class="flex gap-2">
+<button class="bg-[#232426] text-on-surface px-sm py-xs rounded text-label-sm">Assign</button>
+<button class="bg-[#5E6BFF] text-white px-sm py-xs rounded text-label-sm">Acknowledge</button>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 6. Decision Command Center -->
+<section class="h-[900px] px-margin-safe border-t border-custom-divider flex items-center relative">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-2 gap-24 items-center">
+<div class="relative h-[600px] w-full order-2 md:order-1">
+<!-- Background Mockup -->
+<div class="absolute inset-0 bg-[#0a0a0b] border border-custom-divider rounded-xl overflow-hidden p-lg">
+<div class="flex justify-between text-mono-data text-custom-text-muted mb-lg border-b border-custom-divider pb-2">
+<span class="">Aug</span><span class="">Sep</span><span class="">Oct</span><span class="">Nov</span>
+</div>
+<div class="relative h-full">
+<div class="absolute top-10 left-[10%] w-[40%] h-8 bg-[#232426] rounded border border-custom-divider flex items-center px-sm text-label-sm text-on-surface">Budget Reset</div>
+<div class="absolute top-24 left-[30%] w-[50%] h-8 bg-[#232426] rounded border border-custom-divider flex items-center px-sm text-label-sm text-on-surface">Partner Terms</div>
+<!-- Timeline markers -->
+<div class="absolute top-0 left-[25%] w-px h-full bg-custom-divider"></div>
+<div class="absolute top-0 left-[50%] w-px h-full bg-custom-divider"></div>
+<div class="absolute top-0 left-[75%] w-px h-full bg-custom-divider"></div>
+</div>
+</div>
+<!-- Foreground Card -->
+<div class="absolute -right-12 bottom-1/4 w-80 glass-panel border border-custom-divider rounded-lg p-lg shadow-2xl z-10">
+<div class="text-label-sm font-bold text-on-surface mb-sm flex items-center gap-2"><span class="material-symbols-outlined text-[16px] text-[#50d8e9]">rule</span> Decision Queue</div>
+<div class="space-y-sm">
+<div class="flex justify-between items-center text-body-md border-b border-custom-divider pb-2"><span class="text-on-surface">Q4 OKRs</span> <button class="text-[#5E6BFF] text-label-sm">Sign</button></div>
+<div class="flex justify-between items-center text-body-md"><span class="text-on-surface">Hiring Plan</span> <button class="text-[#5E6BFF] text-label-sm">Sign</button></div>
+</div>
+</div>
+</div>
+<div class="order-1 md:order-2">
+<h2 class="font-h2 text-h1 text-on-surface mb-lg">Guide every decision forward</h2>
+<p class="font-body-lg text-[20px] text-custom-text-muted leading-relaxed">Map strategic decisions against operational timelines. Keep execution unblocked with clear ownership and context.</p>
+</div>
+</div>
+</section>
+<!-- 7. Insights Timeline -->
+<section class="h-[820px] px-margin-safe border-t border-custom-divider flex flex-col justify-center relative overflow-hidden">
+<div class="max-w-[1516px] w-full mx-auto relative pt-24">
+<!-- Connecting Line -->
+<div class="absolute top-1/2 left-0 w-full h-px bg-custom-divider -z-10"></div>
+<div class="grid grid-cols-4 gap-xl">
+<!-- Node 1 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-4 h-4 rounded-full bg-[#5E6BFF] mb-lg relative z-10 shadow-[0_0_15px_#5E6BFF]"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Approval cycles</h3>
+<p class="font-body-md text-custom-text-muted">Reduce bottlenecks in critical sign-offs.</p>
+</div>
+<!-- Node 2 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Capacity forecast</h3>
+<p class="font-body-md text-custom-text-muted">Predict resource needs ahead of time.</p>
+</div>
+<!-- Node 3 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Risk movement</h3>
+<p class="font-body-md text-custom-text-muted">Track shifting risk profiles continuously.</p>
+</div>
+<!-- Node 4 -->
+<div class="relative flex flex-col items-center text-center">
+<div class="w-3 h-3 rounded-full bg-[#232426] border border-custom-text-muted mb-lg mt-0.5 relative z-10"></div>
+<h3 class="font-h4 text-on-surface mb-sm">Operating rhythm</h3>
+<p class="font-body-md text-custom-text-muted">Establish a steady heartbeat for execution.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- 8. Customer Quotes -->
+<section class="h-[760px] px-margin-safe border-t border-custom-divider flex items-center bg-[#050505]">
+<div class="max-w-[1516px] w-full mx-auto grid grid-cols-5 gap-lg">
+<!-- Left Quote -->
+<div class="col-span-3 bg-[#D1EBEB] rounded-2xl p-xl flex flex-col justify-between h-[480px]">
+<p class="font-h2 text-h2 text-black leading-tight max-w-2xl">"Romer finally gave our leadership team a unified lens. The signal-to-noise ratio is exactly what we needed to operate faster."</p>
+<div>
+<div class="font-bold text-black font-body-lg">Mara Chen</div>
+<div class="text-black/70 font-body-md">COO, Northline</div>
+</div>
+</div>
+<!-- Right Quote -->
+<div class="col-span-2 bg-[#C4FF44] rounded-2xl p-xl flex flex-col justify-between h-[480px]">
+<p class="font-h3 text-h3 text-black leading-tight">"It replaced three separate dashboards and endless status meetings."</p>
+<div>
+<div class="font-bold text-black font-body-lg">Ivo Patel</div>
+<div class="text-black/70 font-body-md">VP Operations, Meridian</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 9. Final CTA -->
+<section class="h-[760px] px-margin-safe border-t border-custom-divider flex flex-col justify-center items-center text-center">
+<div class="max-w-2xl">
+<h2 class="font-h1 text-hero-headline text-on-surface mb-lg"><div>Run with clarity.</div><div>Move with less noise.</div></h2>
+<div class="flex justify-center gap-md">
+<button class="bg-white text-black px-xl py-md rounded font-body-lg font-bold">Start free trial</button>
+<button class="bg-transparent border border-custom-divider text-on-surface px-xl py-md rounded font-body-lg hover:bg-[#1a1b1d] transition-colors">Contact sales</button>
+</div>
+</div>
+</section>
+<!-- 10. Footer -->
+<footer class="h-[520px] bg-custom-sidebar border-t border-custom-divider flex flex-col justify-between px-margin-safe pt-24 pb-12">
+<div class="max-w-[1728px] w-full mx-auto grid grid-cols-2 md:grid-cols-6 gap-xl">
+<div class="col-span-2">
+<div class="flex items-center gap-sm mb-lg">
+<div class="w-6 h-6 rounded-full border border-custom-text-muted flex items-center justify-center text-on-surface font-h3 font-bold text-[12px]">R</div>
+<span class="font-h3 text-h4 font-bold text-on-surface">Romer</span>
+</div>
+<p class="text-body-md text-custom-text-muted max-w-xs">The operating layer for focused teams.</p>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">PRODUCT</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Overview</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Features</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Security</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">PLATFORM</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Integrations</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">API</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Status</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">COMPANY</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">About</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Careers</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Blog</a>
+</div>
+<div class="flex flex-col gap-sm">
+<div class="font-mono-data text-custom-text-muted mb-sm text-xs">RESOURCES</div>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Documentation</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Guides</a>
+<a class="font-body-md text-on-surface hover:text-primary transition-colors" href="#">Help Center</a>
+</div>
+</div>
+<div class="max-w-[1728px] w-full mx-auto flex justify-between items-center border-t border-custom-divider pt-lg mt-auto">
+<div class="font-mono-data text-custom-text-muted text-xs">© 2024 Romer Inc. All rights reserved.</div>
+<div class="flex gap-lg">
+<a class="font-mono-data text-custom-text-muted text-xs hover:text-on-surface transition-colors" href="#">Privacy Policy</a>
+<a class="font-mono-data text-custom-text-muted text-xs hover:text-on-surface transition-colors" href="#">Terms of Service</a>
+</div>
+</div>
+</footer>
+</main>
+
+
+</body></html>

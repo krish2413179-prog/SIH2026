@@ -4,11 +4,9 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.api.v1.admin_typology import router as admin_typology_router
-from app.api.v1.admin_vasps import router as admin_vasps_router
 from app.api.v1.attributions import router as attributions_router
-from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.ml_report import router as ml_report_router
 from app.api.v1.cases import router as cases_router
 from app.api.v1.dashboard import router as dashboard_router
 from app.api.v1.intel import router as intel_router
@@ -24,15 +22,13 @@ router = APIRouter(prefix="/api/v1")
 router.include_router(auth_router)
 router.include_router(cases_router)
 router.include_router(dashboard_router)
-router.include_router(admin_vasps_router)
-router.include_router(admin_typology_router)
 router.include_router(wallets_router)
 router.include_router(traces_router)
 router.include_router(attributions_router)
+router.include_router(ml_report_router)
 router.include_router(risk_router)
 router.include_router(intel_router)
 router.include_router(reports_router)
 router.include_router(sahyog_router)
-router.include_router(audit_router)
 router.include_router(websocket_router)
 
