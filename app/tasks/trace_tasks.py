@@ -31,6 +31,13 @@ def _get_sync_session_factory() -> sessionmaker:
     if not sync_url:
         from app.config import get_settings
         sync_url = get_settings().database_sync_url
+
+    # Ensure psycopg (v3) driver is used instead of missing psycopg2
+    if "postgresql+psycopg2://" in sync_url:
+        sync_url = sync_url.replace("postgresql+psycopg2://", "postgresql+psycopg://")
+    elif sync_url.startswith("postgresql://"):
+        sync_url = sync_url.replace("postgresql://", "postgresql+psycopg://")
+
     engine = create_engine(
         sync_url,
         pool_pre_ping=True,

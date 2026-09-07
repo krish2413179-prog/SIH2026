@@ -33,7 +33,7 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://postgres:postgres@localhost:5432/vasp_engine"
     )
     database_sync_url: str = Field(
-        default="postgresql+psycopg2://postgres:postgres@localhost:5432/vasp_engine"
+        default="postgresql+psycopg://postgres:postgres@localhost:5432/vasp_engine"
     )
     # Column-level encryption key (must be set in production)
     db_encryption_key: str = Field(..., min_length=1)
