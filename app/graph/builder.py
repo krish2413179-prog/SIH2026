@@ -299,11 +299,6 @@ async def build_graph(
             stacklevel=2,
         )
 
-    # ── Synthetic Fallback if 0 Edges (Upstream API offline/unkey'd) ──
-    if G.number_of_edges() == 0:
-        logger.info("build_graph: 0 edges found for %s on %s — generating fallback trace graph", seed_address, chain)
-        _populate_synthetic_fallback_graph(G, seed_address, chain)
-
     # ── Edge pruning ──────────────────────────────────────────────────────
     if G.number_of_edges() > EDGE_COUNT_PRUNE_THRESHOLD:
         _prune_low_value_edges(G, percentile=PRUNE_PERCENTILE)
@@ -473,57 +468,4 @@ def _prune_low_value_edges(G: nx.DiGraph, percentile: float = 10.0) -> None:
         if float(data.get("amount", 0)) < threshold
     ]
     G.remove_edges_from(edges_to_remove)
-
-
-def _populate_synthetic_fallback_graph(G: nx.DiGraph, seed_address: str, chain: str) -> None:
-    """Generate a realistic multi-hop fallback investigation graph if upstream APIs return 0 transactions."""
-    import random
-    from datetime import datetime, timedelta, timezone
-
-    now = datetime.now(timezone.utc)
-
-    # Known VASP / Hot wallets for attribution demo
-    vasp_wallets = [
-        ("0x28C6c06298d514Db089934071355E5743bf21d60", "Binance Hot Wallet"),
-        ("0x70e24A357c6a99A934E84F7a9561fdA4b1cAD778", "KuCoin Hot Wallet"),
-        ("0x0D0707963952f2fBA59dD06f2b425ace40b492Fe", "Gate.io Deposit"),
-    ]
-
-    current_layer = [seed_address]
-
-    for hop in range(1, 4):
-        next_layer = []
-        for parent_addr in current_layer:
-            num_children = random.randint(2, 4)
-            for i in range(num_children):
-                if hop == 3 and i == 0:
-                    child_addr, _name = random.choice(vasp_wallets)
-                    is_vasp = True
-                else:
-                    child_addr = f"0x{random.randint(0x100000000000, 0xFFFFFFFFFFFF):012x}{hop}{i:02x}"
-                    is_vasp = False
-
-                if child_addr not in G:
-                    G.add_node(child_addr, chain=chain)
-                    if is_vasp:
-                        G.nodes[child_addr]["entity_type"] = "exchange"
-
-                amount = round(random.uniform(0.5, 12.5), 4)
-                tx_hash = f"0x{random.randint(0x1000000000000000, 0xFFFFFFFFFFFFFFFF):016x}"
-                ts = (now - timedelta(hours=random.randint(1, 48))).isoformat()
-
-                G.add_edge(
-                    parent_addr,
-                    child_addr,
-                    tx_hash=tx_hash,
-                    amount=amount,
-                    fee=0.0005,
-                    timestamp=ts,
-                    chain=chain,
-                    is_bridge=False,
-                )
-                if not is_vasp:
-                    next_layer.append(child_addr)
-
-        current_layer = next_layer[:5]
 
