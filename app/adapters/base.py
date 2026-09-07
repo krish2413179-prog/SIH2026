@@ -137,9 +137,9 @@ _PROBE_ADDRESSES: dict[str, str] = {
     "MATIC": "0x0000000000000000000000000000000000000000",
 }
 
-_RETRY_ATTEMPTS = 5
-_BACKOFF_BASE = 1.0   # seconds
-_BACKOFF_MAX = 60.0   # seconds
+_RETRY_ATTEMPTS = 2
+_BACKOFF_BASE = 0.5   # seconds
+_BACKOFF_MAX = 5.0    # seconds
 
 
 class BlockchainAdapter(ABC):
@@ -327,7 +327,7 @@ class BlockchainAdapter(ABC):
         delay = _BACKOFF_BASE
         last_exc: Exception | None = None
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=8.0) as client:
             for attempt in range(_RETRY_ATTEMPTS):
                 try:
                     response = await client.get(url, params=params, headers=headers)
