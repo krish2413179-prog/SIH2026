@@ -391,11 +391,11 @@ function riskColor(band: string | null | undefined) {
 // ── RecentTraces ──────────────────────────────────────────────────────────────
 interface RecentTracesProps {
   cases: import("@/lib/api").Case[]
-  onOpen: (caseId: string, traceId: string, address: string, chain: string) => void
+  onOpen: (caseId: string, traceId: string, address: string, chain: string, status?: string) => void
 }
 
 function RecentTraces({ cases, onOpen }: RecentTracesProps) {
-  // Fetch wallets for all cases with completed traces
+  // Fetch wallets for all cases with traces
   const openCases = cases.slice(0, 20) // cap to avoid too many requests
 
   // We fetch wallets for each case and flatten them
@@ -407,26 +407,26 @@ function RecentTraces({ cases, onOpen }: RecentTracesProps) {
   // Use a single consolidated fetch: get wallets for all cases
   const { data: allWallets, isLoading } = useAllCaseWallets(queries.map((q) => q.id))
 
-  const completedTraces = React.useMemo(() => {
+  const recentTraces = React.useMemo(() => {
     if (!allWallets) return []
-    return allWallets
-      .filter((w: any) => w.status === "completed")
+    return [...allWallets]
       .sort((a: any, b: any) =>
-        new Date(b.completed_at ?? 0).getTime() - new Date(a.completed_at ?? 0).getTime()
+        new Date(b.completed_at || b.started_at || b.enqueued_at || 0).getTime() -
+        new Date(a.completed_at || a.started_at || a.enqueued_at || 0).getTime()
       )
       .slice(0, 10)
   }, [allWallets])
 
-  if (!isLoading && completedTraces.length === 0) return null
+  if (!isLoading && recentTraces.length === 0) return null
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <CardTitle className="text-base flex items-center gap-2">
           <IconShieldCheck className="size-4 text-primary" />
-          Recent completed traces
+          Recent submitted tasks
         </CardTitle>
-        <CardDescription>Click any trace to jump directly to its report.</CardDescription>
+        <CardDescription>Click any trace to jump directly to its live status or report.</CardDescription>
       </CardHeader>
       <CardContent>
         {isLoading ? (
@@ -435,56 +435,77 @@ function RecentTraces({ cases, onOpen }: RecentTracesProps) {
           </div>
         ) : (
           <div className="divide-y">
-            {completedTraces.map((trace: any, i) => (
-              <div
-                key={trace.trace_id || i}
-                className="flex items-center justify-between py-3 gap-4"
-              >
-                <div className="grid gap-0.5 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs truncate max-w-[260px]">
-                      {trace.wallet_address}
-                    </span>
-                    <Badge variant="outline" className="text-xs shrink-0">
-                      {trace.chain}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>Case: {trace.case_title ?? trace.case_id?.slice(0, 8) + "…"}</span>
-                    {trace.completed_at && (
-                      <span>
-                        {new Date(trace.completed_at).toLocaleString(undefined, {
-                          month: "short", day: "numeric",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
+            {recentTraces.map((trace: any, i) => {
+              const traceId = trace.trace_id || trace.id
+              const timestamp = trace.completed_at || trace.started_at || trace.enqueued_at
+              return (
+                <div
+                  key={traceId || i}
+                  className="flex items-center justify-between py-3 gap-4"
+                >
+                  <div className="grid gap-0.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs truncate max-w-[260px]">
+                        {trace.wallet_address}
                       </span>
+                      <Badge variant="outline" className="text-xs shrink-0">
+                        {trace.chain}
+                      </Badge>
+                      {trace.status && (
+                        <Badge
+                          variant={
+                            trace.status === "completed"
+                              ? "default"
+                              : trace.status === "running"
+                              ? "secondary"
+                              : "outline"
+                          }
+                          className="text-[10px] uppercase font-mono tracking-wider shrink-0"
+                        >
+                          {trace.status}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span>Case: {trace.case_title ?? trace.case_id?.slice(0, 8) + "…"}</span>
+                      {timestamp && (
+                        <span>
+                          {new Date(timestamp).toLocaleString(undefined, {
+                            month: "short",
+                            day: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 shrink-0">
+                    {trace.risk_band && (
+                      <div className="text-right">
+                        <p className={`text-sm font-bold ${riskColor(trace.risk_band)}`}>
+                          {trace.risk_score ?? "—"}
+                        </p>
+                        <p className={`text-xs capitalize ${riskColor(trace.risk_band)}`}>
+                          {trace.risk_band}
+                        </p>
+                      </div>
                     )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={!traceId}
+                      onClick={() =>
+                        traceId && onOpen(trace.case_id, traceId, trace.wallet_address, trace.chain, trace.status)
+                      }
+                    >
+                      Open <IconArrowRight className="size-3.5 ml-1" />
+                    </Button>
                   </div>
                 </div>
-
-                <div className="flex items-center gap-3 shrink-0">
-                  {trace.risk_band && (
-                    <div className="text-right">
-                      <p className={`text-sm font-bold ${riskColor(trace.risk_band)}`}>
-                        {trace.risk_score ?? "—"}
-                      </p>
-                      <p className={`text-xs capitalize ${riskColor(trace.risk_band)}`}>
-                        {trace.risk_band}
-                      </p>
-                    </div>
-                  )}
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() =>
-                      onOpen(trace.case_id, trace.trace_id, trace.wallet_address, trace.chain)
-                    }
-                  >
-                    Open <IconArrowRight className="size-3.5 ml-1" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </CardContent>
@@ -758,15 +779,19 @@ export function InvestigationWorkspace() {
 
       </div>
 
-      {/* ── Recent completed traces ──────────────────────────────────────────── */}
+      {/* ── Recent submitted traces ──────────────────────────────────────────── */}
       <RecentTraces
         cases={existingCases}
-        onOpen={(caseId, traceId, address, traceChain) => {
+        onOpen={(caseId, traceId, address, traceChain, status) => {
           setActiveCaseId(caseId)
           setActiveTraceId(traceId)
           setWalletAddress(address)
           setChain(traceChain)
-          setScreen("report")
+          if (status === "running" || status === "queued") {
+            setScreen("trace")
+          } else {
+            setScreen("report")
+          }
         }}
       />
     </div>

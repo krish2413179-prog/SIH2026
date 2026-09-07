@@ -63,7 +63,8 @@ api.interceptors.response.use(
     try {
       const refresh = tokenStorage.getRefresh()
       if (!refresh) throw new Error('No refresh token')
-      const { data } = await axios.post('/api/v1/auth/refresh', { refresh_token: refresh })
+      const refreshBase = (process.env.NEXT_PUBLIC_API_URL || '/api/v1').replace(/\/+$/, '')
+      const { data } = await axios.post(`${refreshBase}/auth/refresh`, { refresh_token: refresh })
       tokenStorage.set(data.access_token, data.refresh_token)
       refreshQueue.forEach((cb) => cb(data.access_token))
       refreshQueue = []

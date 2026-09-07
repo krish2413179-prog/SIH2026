@@ -67,3 +67,6 @@ celerybeat.pid
 .hypothesis/
 scratch/
 .aider*
+.claude/
+.gemini/
+

@@ -42,6 +42,7 @@ async def list_case_wallets(
     return [
         {
             "id": str(j.id),
+            "trace_id": str(j.id),
             "wallet_address": j.wallet_address,
             "chain": j.chain,
             "status": j.status,

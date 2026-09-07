@@ -1,9 +1,11 @@
 /** @type {import('next').NextConfig} */
 
-const BACKEND_HOST =
+const rawBackend =
   process.env.NEXT_PUBLIC_BACKEND_URL ||
   process.env.BACKEND_URL ||
   "https://sih2026-wqbe.onrender.com"
+
+const BACKEND_HOST = rawBackend.replace(/\/+$/, "")
 
 const nextConfig = {
   typescript: {
@@ -23,3 +25,4 @@ const nextConfig = {
 }
 
 export default nextConfig
+
