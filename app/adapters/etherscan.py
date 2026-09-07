@@ -55,8 +55,11 @@ class EtherscanAdapter(BlockchainAdapter):
         deduped by tx_hash.  Token transfers with the same hash as a native tx
         replace the native record so the token amount (not the ETH value) is used.
         """
+        import asyncio
         native = await self._get_native_transactions(address, page=page, page_size=page_size)
+        await asyncio.sleep(0.3)
         tokens = await self._get_token_transactions(address, page=page, page_size=page_size)
+        await asyncio.sleep(0.3)
 
         # Merge: build dict keyed by tx_hash; token txs take priority so that
         # contract calls that move ERC-20 tokens show the token amount instead of 0 ETH.
@@ -64,9 +67,6 @@ class EtherscanAdapter(BlockchainAdapter):
         for tx in native:
             merged[tx.tx_hash] = tx
         for tx in tokens:
-            # Token transfers may share a hash with a native tx (the gas tx).
-            # Keep the token record; if multiple token transfers share a hash
-            # (e.g. swap routing), we pick the one with the largest amount.
             existing = merged.get(tx.tx_hash)
             if existing is None or tx.amount > existing.amount:
                 merged[tx.tx_hash] = tx
@@ -81,6 +81,8 @@ class EtherscanAdapter(BlockchainAdapter):
         page_size: int = 500,
     ) -> list[RawTransaction]:
         """Fetch standard ETH transfers via action=txlist."""
+        import asyncio
+
         params: dict = {
             "chainid": self._chain_id,
             "module":  "account",
@@ -94,33 +96,29 @@ class EtherscanAdapter(BlockchainAdapter):
         if api_key:
             params["apikey"] = api_key
 
-        try:
-            data = await self._fetch_with_retry(self._base_url, params=params)
-        except DataUnavailableError:
-            logger.warning("%s: could not fetch native txs for %s", self.chain, address)
-            return []
+        data: dict = {}
+        for attempt in range(4):
+            try:
+                data = await self._fetch_with_retry(self._base_url, params=params)
+            except DataUnavailableError:
+                logger.warning("%s: could not fetch native txs for %s", self.chain, address)
+                return []
 
-        # Rate-limit guard: Etherscan returns status=0 with a message containing
-        # 'rate limit' when the API key quota is exceeded.  Raise so the caller
-        # can back off and retry rather than silently returning empty results.
-        if data.get("status") == "0" and "rate limit" in (data.get("message") or "").lower():
-            logger.error(
-                "%s native txlist rate-limited for %s: message=%s — "
-                "backing off. This will cause incomplete traces.",
-                self.chain, address[:12], data.get("message"),
-            )
-            raise DataUnavailableError(
-                f"{self.chain} native txlist rate-limited: {data.get('message')}"
-            )
+            res_str = str(data.get("result") or "").lower()
+            msg_str = str(data.get("message") or "").lower()
+            if data.get("status") == "0" and ("rate limit" in msg_str or "rate limit" in res_str or "max calls" in res_str):
+                logger.info("%s native txlist rate-limited for %s; waiting 1.0s (attempt %d/4)...", self.chain, address[:12], attempt + 1)
+                await asyncio.sleep(1.0)
+                continue
+            break
 
         if data.get("status") != "1":
             msg = data.get("message", "")
             result_preview = str(data.get("result", ""))[:120]
             if msg in ("No transactions found", "") or data.get("result") == [] or result_preview == "[]":
                 return []
-            logger.error(
-                "%s native txlist FAILED for %s: status=%s message=%s result_preview=%s — "
-                "check API key and V2 endpoint. This will cause incomplete traces.",
+            logger.warning(
+                "%s native txlist FAILED for %s: status=%s message=%s result_preview=%s",
                 self.chain, address[:12], data.get("status"), msg, result_preview,
             )
             return []
@@ -185,31 +183,31 @@ class EtherscanAdapter(BlockchainAdapter):
         if api_key:
             params["apikey"] = api_key
 
-        try:
-            data = await self._fetch_with_retry(self._base_url, params=params)
-        except DataUnavailableError:
-            logger.debug("%s: could not fetch token txs for %s", self.chain, address)
-            return []
+        import asyncio
 
-        # Rate-limit guard: same pattern as native txlist.
-        if data.get("status") == "0" and "rate limit" in (data.get("message") or "").lower():
-            logger.error(
-                "%s tokentx rate-limited for %s: message=%s — "
-                "backing off. This will cause incomplete traces.",
-                self.chain, address[:12], data.get("message"),
-            )
-            raise DataUnavailableError(
-                f"{self.chain} tokentx rate-limited: {data.get('message')}"
-            )
+        data: dict = {}
+        for attempt in range(4):
+            try:
+                data = await self._fetch_with_retry(self._base_url, params=params)
+            except DataUnavailableError:
+                logger.debug("%s: could not fetch token txs for %s", self.chain, address)
+                return []
+
+            res_str = str(data.get("result") or "").lower()
+            msg_str = str(data.get("message") or "").lower()
+            if data.get("status") == "0" and ("rate limit" in msg_str or "rate limit" in res_str or "max calls" in res_str):
+                logger.info("%s tokentx rate-limited for %s; waiting 1.0s (attempt %d/4)...", self.chain, address[:12], attempt + 1)
+                await asyncio.sleep(1.0)
+                continue
+            break
 
         if data.get("status") != "1":
             msg = data.get("message", "")
             result_preview = str(data.get("result", ""))[:120]
             if msg in ("No transactions found", "No token transfers found", "") or data.get("result") == [] or result_preview == "[]":
                 return []
-            logger.error(
-                "%s tokentx FAILED for %s: status=%s message=%s result_preview=%s — "
-                "check API key and V2 endpoint. This will cause incomplete traces.",
+            logger.warning(
+                "%s tokentx FAILED for %s: status=%s message=%s result_preview=%s",
                 self.chain, address[:12], data.get("status"), msg, result_preview,
             )
             return []

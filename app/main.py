@@ -31,6 +31,13 @@ settings = get_settings()
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Startup and shutdown lifecycle hooks."""
     logger.info("Starting up VASP Attribution Engine", env=settings.app_env)
+    try:
+        async with engine.begin() as conn:
+            from sqlalchemy import text
+            await conn.execute(text("UPDATE trace_jobs SET status = 'cancelled' WHERE status IN ('queued', 'running')"))
+            logger.info("Cleared all previous queued/running trace jobs on startup")
+    except Exception as exc:
+        logger.warning("Failed to clear previous trace jobs on startup: %s", exc)
     yield
     logger.info("Shutting down VASP Attribution Engine")
     await engine.dispose()
