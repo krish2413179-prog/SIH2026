@@ -211,6 +211,9 @@ async def get_trace_status(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No trace job found with id {trace_id}",
         )
+    if job.status == "queued":
+        from app.wallets.service import _enqueue_trace
+        _enqueue_trace(job.id)
     return {
         "trace_id":     job.id,
         "status":       job.status,

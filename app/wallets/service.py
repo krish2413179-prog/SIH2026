@@ -71,24 +71,34 @@ async def _write_wallet_audit(
         )
 
 
-def _enqueue_trace(trace_job_id: uuid.UUID) -> str | None:
-    """Fire-and-forget Celery enqueue for a trace job.
+import concurrent.futures
 
-    Wrapped in try/except so that Celery being temporarily unavailable
-    never blocks or fails the HTTP submission response.
-    """
+_bg_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+
+
+def _enqueue_trace(trace_job_id: uuid.UUID) -> str | None:
+    """Fire-and-forget Celery enqueue for a trace job with in-process fallback."""
     try:
         from app.tasks.trace_tasks import run_trace  # local import to avoid circularity
 
         task = run_trace.delay(str(trace_job_id))
+        logger.info("Enqueued Celery task %s for trace_job_id=%s", task.id, trace_job_id)
         return task.id
-    except Exception:  # noqa: BLE001
-        logger.exception(
-            "Failed to enqueue Celery trace task for trace_job_id=%s; "
-            "job remains in 'queued' status for manual re-queue",
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Celery enqueue unavailable for trace_job_id=%s (%s); running via in-process background thread",
             trace_job_id,
+            exc,
         )
-        return None
+        def _run_in_background():
+            try:
+                from app.tasks.trace_tasks import run_trace
+                run_trace(str(trace_job_id))
+            except Exception:
+                logger.exception("In-process background trace execution failed for trace_job_id=%s", trace_job_id)
+
+        _bg_executor.submit(_run_in_background)
+        return "in_process_fallback"
 
 
 # ---------------------------------------------------------------------------
