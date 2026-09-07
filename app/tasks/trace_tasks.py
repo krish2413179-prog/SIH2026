@@ -119,6 +119,7 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
                     chain=job.chain,
                     adapter=adapter,
                     max_hops=job.max_hops,
+                    trace_id=str(job.id),
                     min_nodes=200,
                     deadline_seconds=180.0,
                     max_frontier_size=25,

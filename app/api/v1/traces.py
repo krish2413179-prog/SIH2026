@@ -75,16 +75,17 @@ async def get_live_feed(
     if job is None:
         raise HTTPException(status_code=404, detail="Trace not found")
 
-    addresses: list[str] = []
-    if job.status == "running":
+    from app.graph.live_feed import get_live_addresses
+    addresses: list[str] = get_live_addresses(str(trace_id), limit=limit)
+
+    # Fallback to log tailing if in-memory list is empty
+    if not addresses and job.status == "running":
         tail = _tail_log(_CELERY_LOG)
-        # Extract addresses, deduplicate preserving order (newest first)
         seen: set[str] = set()
         for match in reversed(_ADDR_RE.findall(tail)):
-            addr = match
-            if addr not in seen:
-                seen.add(addr)
-                addresses.append(addr)
+            if match not in seen:
+                seen.add(match)
+                addresses.append(match)
             if len(addresses) >= limit:
                 break
 

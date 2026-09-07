@@ -90,6 +90,7 @@ async def build_graph(
     adapter: "BlockchainAdapter",
     max_hops: int = 5,
     *,
+    trace_id: str | None = None,
     min_nodes: int = 2000,
     deadline_seconds: float = DEFAULT_DEADLINE_SECONDS,
     max_per_address: int = 200,
@@ -196,6 +197,12 @@ async def build_graph(
         api_calls = 0
 
         for addr in list(unvisited_frontier.keys()):
+            if trace_id:
+                try:
+                    from app.graph.live_feed import record_live_address
+                    record_live_address(str(trace_id), addr)
+                except Exception:
+                    pass
             # Per-address deadline check so we don't overshoot on a slow API call
             if time.monotonic() >= deadline:
                 warnings.warn(
