@@ -110,8 +110,7 @@ def run_trace(self, trace_job_id: str) -> None:  # type: ignore[override]
                                     )
                                 )
                                 _db.commit()
-                        loop = asyncio.get_event_loop()
-                        await loop.run_in_executor(None, _sync_write)
+                        await asyncio.to_thread(_sync_write)
                     except Exception:
                         logger.warning("run_trace: failed to persist hop %d", hop, exc_info=True)
 

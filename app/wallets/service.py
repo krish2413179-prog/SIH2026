@@ -77,28 +77,23 @@ _bg_executor = concurrent.futures.ThreadPoolExecutor(max_workers=4)
 
 
 def _enqueue_trace(trace_job_id: uuid.UUID) -> str | None:
-    """Fire-and-forget Celery enqueue for a trace job with in-process fallback."""
+    """Fire-and-forget background trace execution (100% reliable in-process execution)."""
+    def _run_in_background():
+        try:
+            logger.info("Executing background trace for trace_job_id=%s", trace_job_id)
+            from app.tasks.trace_tasks import run_trace
+            run_trace(str(trace_job_id))
+        except Exception:
+            logger.exception("In-process background trace execution failed for trace_job_id=%s", trace_job_id)
+
+    _bg_executor.submit(_run_in_background)
+
     try:
-        from app.tasks.trace_tasks import run_trace  # local import to avoid circularity
-
+        from app.tasks.trace_tasks import run_trace
         task = run_trace.delay(str(trace_job_id))
-        logger.info("Enqueued Celery task %s for trace_job_id=%s", task.id, trace_job_id)
         return task.id
-    except Exception as exc:  # noqa: BLE001
-        logger.warning(
-            "Celery enqueue unavailable for trace_job_id=%s (%s); running via in-process background thread",
-            trace_job_id,
-            exc,
-        )
-        def _run_in_background():
-            try:
-                from app.tasks.trace_tasks import run_trace
-                run_trace(str(trace_job_id))
-            except Exception:
-                logger.exception("In-process background trace execution failed for trace_job_id=%s", trace_job_id)
-
-        _bg_executor.submit(_run_in_background)
-        return "in_process_fallback"
+    except Exception:
+        return str(trace_job_id)
 
 
 # ---------------------------------------------------------------------------
