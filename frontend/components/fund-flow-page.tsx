@@ -70,7 +70,75 @@ function nodeSize(inDegree: number, outDegree: number, isSeed: boolean): number 
   return Math.max(14, Math.min(26, 12 + deg * 0.55))
 }
 
-// ── Custom canvas renderer — wallet-address "dp" avatar ──────────────────────
+// ── Ethereum Blockies — deterministic identicon from address ──────────────────
+// Same algorithm as MetaMask / ethereum-blockies-base. Every unique address
+// produces a unique, colorful, symmetric 8×8 pixel-art avatar.
+
+// Simple seedable PRNG (same as blockies-identicon)
+function blockiesSeed(seed: string): () => number {
+  const rngState = new Array(4).fill(0)
+  const lower = seed.toLowerCase()
+  for (let i = 0; i < lower.length; i++) {
+    rngState[i % 4] = (rngState[i % 4] << 5) - rngState[i % 4] + lower.charCodeAt(i)
+    rngState[i % 4] = rngState[i % 4] >>> 0
+  }
+  return function next() {
+    const t = rngState[0] ^ (rngState[0] << 11)
+    rngState[0] = rngState[1]
+    rngState[1] = rngState[2]
+    rngState[2] = rngState[3]
+    rngState[3] = rngState[3] ^ (rngState[3] >> 19) ^ t ^ (t >> 8)
+    return (rngState[3] >>> 0) / ((1 << 31) >>> 0)
+  }
+}
+
+function hsl2rgb(h: number, s: number, l: number): [number, number, number] {
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r = 0, g = 0, b = 0
+  if (h < 60) { r = c; g = x; b = 0 }
+  else if (h < 120) { r = x; g = c; b = 0 }
+  else if (h < 180) { r = 0; g = c; b = x }
+  else if (h < 240) { r = 0; g = x; b = c }
+  else if (h < 300) { r = x; g = 0; b = c }
+  else { r = c; g = 0; b = x }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+
+function blockiesColors(rand: () => number) {
+  const h = Math.floor(rand() * 360)
+  const s = 0.5 + rand() * 0.3       // 50-80% saturation
+  const l = 0.35 + rand() * 0.15      // 35-50% lightness  (main)
+  const l2 = 0.55 + rand() * 0.2      // 55-75% lightness (spot)
+  const [r1, g1, b1] = hsl2rgb(h, s, l)
+  const [r2, g2, b2] = hsl2rgb(h, s, l2)
+  const bg = `rgb(${Math.round(rand() * 60 + 200)},${Math.round(rand() * 60 + 200)},${Math.round(rand() * 60 + 200)})`
+  const color = `rgb(${r1},${g1},${b1})`
+  const spot = `rgb(${r2},${g2},${b2})`
+  return { bg, color, spot }
+}
+
+function blockiesData(address: string): { grid: number[]; colors: { bg: string; color: string; spot: string } } {
+  const rand = blockiesSeed(address)
+  const colors = blockiesColors(rand)
+  const gridSize = 8
+  const halfW = Math.ceil(gridSize / 2)
+  const grid: number[] = []
+  for (let y = 0; y < gridSize; y++) {
+    const row: number[] = []
+    for (let x = 0; x < halfW; x++) {
+      const v = Math.floor(rand() * 2.3)   // 0 = bg, 1 = color, 2 = spot
+      row.push(v)
+    }
+    // Mirror horizontally for symmetry
+    const mirroredRow = [...row, ...row.slice().reverse().slice(gridSize % 2 === 0 ? 0 : 1)]
+    grid.push(...mirroredRow)
+  }
+  return { grid, colors }
+}
+
+// ── Custom canvas renderer — wallet-address blockie avatar ───────────────────
 // vis-network calls ctxRenderer for shape:"custom" nodes.
 // `ctx` is the canvas 2D context; x,y is the node centre; selected/hover are booleans.
 function makeCtxRenderer(
@@ -79,9 +147,13 @@ function makeCtxRenderer(
   isSeed: boolean,
   radius: number,
 ) {
+  // Pre-compute blockie data once per node
+  const { grid, colors: blockieColors } = blockiesData(address)
+  const gridSize = 8
+
   return {
     drawNode(ctx: CanvasRenderingContext2D, x: number, y: number, selected: boolean, hover: boolean) {
-      const { bg, ring, text } = addrColor(address, entityType, isSeed)
+      const { ring } = addrColor(address, entityType, isSeed)
       const r = radius
       const ringW = isSeed ? 3 : selected ? 2.5 : hover ? 2 : 1.5
 
@@ -97,33 +169,26 @@ function makeCtxRenderer(
         ctx.restore()
       }
 
-      // ── Identicon-style background: 4 small squares derived from address ─
-      // Clips to the circle first, then draws a subtle pattern
+      // ── Blockie identicon — clip to circle, draw 8×8 pixel grid ──────────
       ctx.save()
       ctx.beginPath()
       ctx.arc(x, y, r, 0, Math.PI * 2)
       ctx.clip()
 
-      // Base fill
-      ctx.fillStyle = bg
+      // Background fill
+      ctx.fillStyle = blockieColors.bg
       ctx.fillRect(x - r, y - r, r * 2, r * 2)
 
-      // Subtle identicon squares (3×3 grid, symmetric, seeded by address chars)
-      const cell = (r * 2) / 5
-      const ox = x - r + cell
-      const oy = y - r + cell
-      for (let row = 0; row < 3; row++) {
-        for (let col = 0; col < 3; col++) {
-          const idx = row * 3 + col
-          const charCode = address.charCodeAt(2 + idx) || 0
-          if (charCode % 2 === 0) {
-            ctx.fillStyle = "rgba(255,255,255,0.10)"
-            ctx.fillRect(ox + col * cell, oy + row * cell, cell - 1, cell - 1)
-            // Mirror left column to make it symmetric
-            if (col < 2) {
-              ctx.fillRect(ox + (4 - col) * cell, oy + row * cell, cell - 1, cell - 1)
-            }
-          }
+      // Draw the 8×8 grid cells
+      const cellW = (r * 2) / gridSize
+      const cellH = (r * 2) / gridSize
+      for (let row = 0; row < gridSize; row++) {
+        for (let col = 0; col < gridSize; col++) {
+          const val = grid[row * gridSize + col]
+          if (val === 1) ctx.fillStyle = blockieColors.color
+          else if (val === 2) ctx.fillStyle = blockieColors.spot
+          else continue  // bg — already filled
+          ctx.fillRect(x - r + col * cellW, y - r + row * cellH, cellW, cellH)
         }
       }
       ctx.restore()
@@ -134,15 +199,6 @@ function makeCtxRenderer(
       ctx.strokeStyle = selected ? "#c7d2fe" : hover ? "#a5b4fc" : ring
       ctx.lineWidth = ringW
       ctx.stroke()
-
-      // ── Monogram text ─────────────────────────────────────────────────────
-      const mono = addrMonogram(address)
-      const fontSize = Math.max(7, Math.round(r * 0.52))
-      ctx.font = `600 ${fontSize}px "JetBrains Mono", "Fira Code", ui-monospace, monospace`
-      ctx.fillStyle = text
-      ctx.textAlign = "center"
-      ctx.textBaseline = "middle"
-      ctx.fillText(mono, x, y)
     },
     // Bounding box must match the drawn circle for hit-testing
     nodeDimensions: { width: radius * 2, height: radius * 2 },
