@@ -42,10 +42,17 @@ class BenchmarkDatasetGenerator:
     # -------------------------------------------------------------------------
 
     def _gen_peeling_chain(self, target_addr: str) -> list[dict[str, Any]]:
-        """Simulate a peeling chain: large inflow, rapid peel into small amount + change address."""
+        """Simulate a peeling chain: large inflow, rapid peel into small amount + change address.
+
+        Lifespan is intentionally overlapping with benign wallets (1–120 days) to prevent
+        the model from over-indexing on lifespan alone as the discriminating feature.
+        """
         txs = []
-        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(1, 10))
-        initial_amount = round(self.rng.uniform(10.0, 500.0), 4)
+        # Overlapping lifespan: 1–120 days (same range as some benign profiles)
+        days_ago = self.rng.randint(1, 120)
+        base_time = datetime.now(timezone.utc) - timedelta(days=days_ago)
+        # Realistic amounts overlapping benign range (not always whale-sized)
+        initial_amount = round(self.rng.uniform(0.5, 50.0), 4)
 
         # Inflow
         sender = self._generate_wallet_address()
@@ -57,19 +64,19 @@ class BenchmarkDatasetGenerator:
             "is_risk": False,
         })
 
-        # Rapid peels (hops)
+        # Rapid peels (hops) — the key signal is the rapid timing, not the amount
         curr_time = base_time
         curr_balance = initial_amount
         peel_steps = self.rng.randint(3, 12)
 
         for _ in range(peel_steps):
-            if curr_balance <= 0.1:
+            if curr_balance <= 0.01:
                 break
-            peel_amt = round(self.rng.uniform(0.05, min(2.0, curr_balance * 0.2)), 4)
+            peel_amt = round(self.rng.uniform(0.005, min(1.0, curr_balance * 0.25)), 4)
             curr_balance -= peel_amt
-            curr_time += timedelta(minutes=self.rng.randint(2, 45))  # Rapid forwarding
+            # Jitter: sometimes slightly longer delays to mimic realistic behaviour
+            curr_time += timedelta(minutes=self.rng.randint(2, 55))  # Rapid forwarding
 
-            # Peel transfer out
             txs.append({
                 "from_addr": target_addr,
                 "to_addr": self._generate_wallet_address(),
@@ -79,7 +86,7 @@ class BenchmarkDatasetGenerator:
             })
 
         # Remaining balance swept to new address
-        if curr_balance > 0.01:
+        if curr_balance > 0.001:
             curr_time += timedelta(minutes=self.rng.randint(5, 30))
             txs.append({
                 "from_addr": target_addr,
@@ -92,17 +99,25 @@ class BenchmarkDatasetGenerator:
         return txs
 
     def _gen_smurfing_structuring(self, target_addr: str) -> list[dict[str, Any]]:
-        """Simulate smurfing: many small round-number deposits followed by bulk cash-out."""
-        txs = []
-        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(2, 14))
-        num_deposits = self.rng.randint(8, 30)
+        """Simulate smurfing: many small round-number deposits followed by bulk cash-out.
 
-        # Multiple senders depositing round numbers
+        Lifespan overlaps with benign wallets (2–60 days) and amounts are smaller
+        and more realistic to avoid gross distribution separation.
+        """
+        txs = []
+        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(2, 60))
+        num_deposits = self.rng.randint(6, 25)
+
+        # Multiple senders depositing round numbers (realistic smaller amounts)
         total_deposited = 0.0
         curr_time = base_time
         for _ in range(num_deposits):
-            curr_time += timedelta(hours=self.rng.randint(1, 6))
-            round_amt = float(self.rng.choice([10.0, 20.0, 50.0, 100.0, 200.0, 500.0]))
+            curr_time += timedelta(hours=self.rng.randint(1, 8))
+            # Mix of round amounts + near-round amounts for realism
+            base_round = float(self.rng.choice([5.0, 10.0, 20.0, 25.0, 50.0, 100.0]))
+            # Occasionally add small jitter to make it less obvious
+            jitter = self.rng.uniform(0.0, 0.5) if self.rng.random() < 0.3 else 0.0
+            round_amt = round(base_round + jitter, 4)
             total_deposited += round_amt
             txs.append({
                 "from_addr": self._generate_wallet_address(),
@@ -113,7 +128,7 @@ class BenchmarkDatasetGenerator:
             })
 
         # Swept out in 1 or 2 burst transactions shortly after
-        curr_time += timedelta(hours=self.rng.randint(1, 4))
+        curr_time += timedelta(hours=self.rng.randint(1, 6))
         txs.append({
             "from_addr": target_addr,
             "to_addr": self._generate_wallet_address(),
@@ -124,15 +139,20 @@ class BenchmarkDatasetGenerator:
         return txs
 
     def _gen_rapid_pass_through(self, target_addr: str) -> list[dict[str, Any]]:
-        """Simulate pass-through / mule wallet: money in, money out immediately with 0 retention."""
+        """Simulate pass-through / mule wallet: money in, money out immediately with 0 retention.
+
+        Lifespan extended to 1–90 days so it overlaps with benign long-lived wallets.
+        Key signal remains the near-zero retention and rapid forwarding timing.
+        """
         txs = []
-        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(1, 5))
-        rounds = self.rng.randint(2, 6)
+        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(1, 90))
+        rounds = self.rng.randint(2, 8)
         curr_time = base_time
 
         for _ in range(rounds):
-            amt = round(self.rng.uniform(5.0, 150.0), 4)
-            curr_time += timedelta(hours=self.rng.randint(4, 24))
+            # Realistic amounts that overlap with DeFi trader and retail merchant
+            amt = round(self.rng.uniform(0.1, 20.0), 4)
+            curr_time += timedelta(hours=self.rng.randint(6, 72))
             # Inbound
             txs.append({
                 "from_addr": self._generate_wallet_address(),
@@ -141,26 +161,31 @@ class BenchmarkDatasetGenerator:
                 "timestamp": curr_time.isoformat(),
                 "is_risk": False,
             })
-            # Outbound in 2 to 20 minutes (almost zero retention, high rapid forward)
-            curr_time += timedelta(minutes=self.rng.randint(2, 20))
+            # Outbound within 2–30 minutes (near-zero retention is the key signal)
+            curr_time += timedelta(minutes=self.rng.randint(2, 30))
             txs.append({
                 "from_addr": target_addr,
                 "to_addr": self._generate_wallet_address(),
-                "amount": round(amt * 0.995, 4),
+                "amount": round(amt * self.rng.uniform(0.99, 0.999), 4),
                 "timestamp": curr_time.isoformat(),
                 "is_risk": False,
             })
         return txs
 
     def _gen_mixer_interaction(self, target_addr: str) -> list[dict[str, Any]]:
-        """Simulate interactions with mixer contracts / coinjoin protocols."""
+        """Simulate interactions with mixer contracts / coinjoin protocols.
+
+        Lifespan extended to 3–120 days to overlap with benign wallets.
+        Key signal: high_risk_entity_exposure (is_mixer=True transaction).
+        """
         txs = []
-        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(3, 20))
+        # Overlapping lifespan with benign wallets
+        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(3, 120))
         curr_time = base_time
         mixer_addr = self._generate_wallet_address(prefix="0xmixer_")
 
-        # Inflow from mixer
-        in_amt = round(self.rng.choice([1.0, 5.0, 10.0, 50.0]), 2)
+        # Inflow from mixer — realistic amounts that overlap with DeFi/retail
+        in_amt = round(self.rng.uniform(0.5, 15.0), 4)
         txs.append({
             "from_addr": mixer_addr,
             "to_addr": target_addr,
@@ -170,22 +195,28 @@ class BenchmarkDatasetGenerator:
             "is_mixer": True,
         })
 
-        # Disperse to multiple random addresses
-        for _ in range(self.rng.randint(4, 10)):
-            curr_time += timedelta(minutes=self.rng.randint(5, 60))
+        # Disperse to multiple random addresses (fan-out is a secondary signal)
+        for _ in range(self.rng.randint(4, 12)):
+            curr_time += timedelta(minutes=self.rng.randint(5, 90))
             txs.append({
                 "from_addr": target_addr,
                 "to_addr": self._generate_wallet_address(),
-                "amount": round(in_amt / 8.0, 4),
+                "amount": round(in_amt / self.rng.uniform(6.0, 10.0), 4),
                 "timestamp": curr_time.isoformat(),
                 "is_risk": False,
             })
         return txs
 
     def _gen_ransomware_cashout(self, target_addr: str) -> list[dict[str, Any]]:
-        """Simulate ransomware payment consolidation: high in-degree, unregular hours, burst cash-out."""
+        """Simulate ransomware payment consolidation: high in-degree, night hours, burst cash-out.
+
+        Lifespan extended to 2–90 days to overlap with benign long-lived wallets.
+        Key signals: high fan-in (many unique victim senders), night_activity_ratio,
+        burst_volume_ratio, and a single large cash-out to a high-risk entity.
+        """
         txs = []
-        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(2, 8))
+        # Extended lifespan — some ransomware campaigns run for months
+        base_time = datetime.now(timezone.utc) - timedelta(days=self.rng.randint(2, 90))
         victims = self.rng.randint(5, 20)
         curr_time = base_time
         total_loot = 0.0
@@ -351,8 +382,17 @@ class BenchmarkDatasetGenerator:
         self,
         n_samples: int = 2000,
         suspicious_ratio: float = 0.45,
+        noise_scale: float = 0.05,
     ) -> tuple[np.ndarray, np.ndarray, list[dict[str, Any]]]:
         """Generate a balanced benchmark dataset of feature vectors (X) and binary labels (y).
+
+        Args:
+            n_samples:        Total number of wallet samples.
+            suspicious_ratio: Fraction of samples labelled suspicious.
+            noise_scale:      Std-dev of Gaussian noise added to each normalised feature
+                              (default 0.05 = 5%). This prevents the model from achieving
+                              perfect separation on synthetic data and forces it to learn
+                              robust behavioural signals rather than generator artefacts.
 
         Returns:
             X: np.ndarray of shape (n_samples, len(FEATURE_NAMES))
@@ -421,6 +461,21 @@ class BenchmarkDatasetGenerator:
 
         X = np.array(X_rows, dtype=np.float32)
         y = np.array(y_vals, dtype=np.int32)
+
+        # ── Gaussian noise injection ──────────────────────────────────────────
+        # Normalise each feature column to [0, 1] range, add N(0, noise_scale)
+        # noise, then rescale back. This prevents the ensemble from memorising
+        # exact generator artefacts and forces it to learn robust signals.
+        # Noise is added AFTER feature extraction so metadata stays clean.
+        if noise_scale > 0.0:
+            col_min = X.min(axis=0)
+            col_max = X.max(axis=0)
+            col_range = np.where(col_max - col_min > 0, col_max - col_min, 1.0)
+            X_norm = (X - col_min) / col_range
+            noise = self.np_rng.normal(0.0, noise_scale, size=X_norm.shape).astype(np.float32)
+            X_norm = np.clip(X_norm + noise, 0.0, 1.0)
+            X = (X_norm * col_range + col_min).astype(np.float32)
+        # ─────────────────────────────────────────────────────────────────────
 
         return X, y, records
 

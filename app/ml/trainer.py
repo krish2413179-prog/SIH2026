@@ -16,6 +16,7 @@ from typing import Any
 
 import joblib
 import numpy as np
+from sklearn.calibration import CalibratedClassifierCV
 from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier, VotingClassifier
 from sklearn.metrics import (
     accuracy_score,
@@ -44,28 +45,39 @@ class WalletSuspicionTrainer:
         self.random_state = random_state
         self.scaler = RobustScaler()
         self.rf = RandomForestClassifier(
-            n_estimators=150,
-            max_depth=14,
-            min_samples_split=4,
-            min_samples_leaf=2,
+            n_estimators=100,       # Reduced from 150 to prevent overfit
+            max_depth=10,           # Reduced from 14
+            min_samples_split=6,    # Increased to require more evidence per split
+            min_samples_leaf=3,     # Increased to smooth decision boundary
+            max_features="sqrt",    # Limits features per split — reduces variance
             class_weight="balanced",
             random_state=self.random_state,
             n_jobs=-1,
         )
         self.hgb = HistGradientBoostingClassifier(
-            max_iter=150,
-            max_depth=8,
-            learning_rate=0.08,
-            l2_regularization=0.1,
+            max_iter=100,           # Reduced from 150
+            max_depth=6,            # Reduced from 8
+            learning_rate=0.10,
+            l2_regularization=0.3,  # Increased regularization
             class_weight="balanced",
             random_state=self.random_state,
         )
-        self.ensemble = VotingClassifier(
+        self._base_ensemble = VotingClassifier(
             estimators=[
                 ("rf", self.rf),
                 ("hgb", self.hgb),
             ],
             voting="soft",
+        )
+        # Isotonic calibration maps raw ensemble probabilities to realistic
+        # posteriors. cv=5 uses 5-fold internal CV so calibration generalises
+        # beyond the training set. This is what produces scores like 0.72
+        # instead of 0.0/1.0 for real wallets that don't perfectly match
+        # the synthetic training distribution.
+        self.ensemble = CalibratedClassifierCV(
+            self._base_ensemble,
+            method="isotonic",
+            cv=5,
         )
         self.metrics: dict[str, Any] = {}
         self.feature_importances: dict[str, float] = {}
@@ -109,9 +121,20 @@ class WalletSuspicionTrainer:
         roc_auc = float(roc_auc_score(y_test, y_prob))
         cm = confusion_matrix(y_test, y_pred).tolist()
 
-        # Extract feature importances from the fitted RandomForest component
-        rf_fitted = self.ensemble.named_estimators_["rf"]
-        raw_importances = rf_fitted.feature_importances_
+        # Extract feature importances from the fitted RandomForest inside calibrated ensemble
+        # CalibratedClassifierCV stores fitted base estimators in .calibrated_classifiers_
+        rf_fitted = None
+        try:
+            # Each calibrated classifier wraps a clone of the base estimator
+            base_fitted = self.ensemble.calibrated_classifiers_[0].estimator
+            rf_fitted = base_fitted.named_estimators_["rf"]
+        except (AttributeError, IndexError, KeyError):
+            pass
+
+        if rf_fitted is not None:
+            raw_importances = rf_fitted.feature_importances_
+        else:
+            raw_importances = np.zeros(len(FEATURE_NAMES))
         sorted_indices = np.argsort(raw_importances)[::-1]
 
         self.feature_importances = {
@@ -201,7 +224,9 @@ if __name__ == "__main__":
     print("=" * 65)
     generator = BenchmarkDatasetGenerator(seed=42)
     print(f"[*] Generating {args.samples:,} AML benchmark wallet transaction groups...")
-    X, y, _ = generator.generate_dataset(n_samples=args.samples)
+    # noise_scale=0.08: adds 8% Gaussian jitter to normalised features,
+    # preventing perfect synthetic separation and improving real-wallet generalisation.
+    X, y, _ = generator.generate_dataset(n_samples=args.samples, noise_scale=0.08)
 
     trainer = WalletSuspicionTrainer(random_state=42)
     print("[*] Training Ensemble (RandomForest + HistGradientBoosting)...")

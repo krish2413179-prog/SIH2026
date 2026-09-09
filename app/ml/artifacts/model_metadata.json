@@ -1,82 +1,82 @@
 {
-  "trained_at": "2026-09-03T20:56:32.148355+00:00",
+  "trained_at": "2026-09-09T04:22:28.367461+00:00",
   "sample_count": 100000,
   "train_samples": 80000,
   "test_samples": 20000,
   "features_count": 25,
-  "accuracy": 1.0,
-  "roc_auc": 1.0,
-  "precision": 1.0,
-  "recall": 1.0,
-  "f1_score": 1.0,
+  "accuracy": 0.9999,
+  "roc_auc": 0.9999,
+  "precision": 0.9999,
+  "recall": 0.9999,
+  "f1_score": 0.9999,
   "cv_mean_roc_auc": 1.0,
   "cv_std_roc_auc": 0.0,
   "confusion_matrix": {
-    "true_negative": 11000,
-    "false_positive": 0,
-    "false_negative": 0,
-    "true_positive": 9000
+    "true_negative": 10999,
+    "false_positive": 1,
+    "false_negative": 1,
+    "true_positive": 8999
   },
   "top_features": [
     [
-      "lifespan_hours",
-      0.2294
+      "burst_volume_ratio",
+      0.1851
     ],
     [
       "tx_per_day",
-      0.1932
+      0.1458
     ],
     [
-      "max_tx_amount",
-      0.134
-    ],
-    [
-      "std_tx_amount",
-      0.0876
-    ],
-    [
-      "mean_tx_amount",
-      0.0849
-    ],
-    [
-      "burst_volume_ratio",
-      0.0831
-    ],
-    [
-      "total_inflow",
-      0.0369
+      "counterparty_dispersion",
+      0.104
     ],
     [
       "high_risk_entity_exposure",
-      0.0329
+      0.0756
+    ],
+    [
+      "total_tx_count",
+      0.0693
+    ],
+    [
+      "net_balance_retention",
+      0.0539
+    ],
+    [
+      "night_activity_ratio",
+      0.0534
+    ],
+    [
+      "lifespan_hours",
+      0.0462
     ]
   ],
   "feature_importances": {
-    "lifespan_hours": 0.2294,
-    "tx_per_day": 0.1932,
-    "max_tx_amount": 0.134,
-    "std_tx_amount": 0.0876,
-    "mean_tx_amount": 0.0849,
-    "burst_volume_ratio": 0.0831,
-    "total_inflow": 0.0369,
-    "high_risk_entity_exposure": 0.0329,
-    "total_outflow": 0.0295,
-    "counterparty_dispersion": 0.0284,
-    "round_amount_ratio": 0.0116,
-    "fan_in_ratio": 0.0092,
-    "in_out_tx_ratio": 0.0084,
-    "net_balance_retention": 0.0082,
-    "reciprocity_ratio": 0.0071,
-    "fan_out_ratio": 0.0066,
-    "total_tx_count": 0.0041,
-    "rapid_forwarding_ratio": 0.0036,
-    "in_tx_count": 0.0007,
-    "out_degree": 0.0004,
-    "amount_gini": 0.0001,
-    "night_activity_ratio": 0.0,
-    "in_degree": 0.0,
-    "out_tx_count": 0.0,
+    "burst_volume_ratio": 0.1851,
+    "tx_per_day": 0.1458,
+    "counterparty_dispersion": 0.104,
+    "high_risk_entity_exposure": 0.0756,
+    "total_tx_count": 0.0693,
+    "net_balance_retention": 0.0539,
+    "night_activity_ratio": 0.0534,
+    "lifespan_hours": 0.0462,
+    "in_tx_count": 0.044,
+    "reciprocity_ratio": 0.0396,
+    "rapid_forwarding_ratio": 0.0363,
+    "in_degree": 0.0317,
+    "in_out_tx_ratio": 0.0236,
+    "fan_in_ratio": 0.0199,
+    "out_degree": 0.0192,
+    "out_tx_count": 0.0174,
+    "fan_out_ratio": 0.0123,
+    "amount_gini": 0.0072,
+    "round_amount_ratio": 0.0053,
+    "mean_tx_amount": 0.0051,
+    "std_tx_amount": 0.0021,
+    "max_tx_amount": 0.0014,
+    "total_outflow": 0.0011,
+    "total_inflow": 0.0004,
     "dust_tx_ratio": 0.0
   },
-  "model_path": "C:\\Users\\kesha\\sih\\app\\ml\\artifacts\\wallet_suspicion_model.joblib"
+  "model_path": "/Users/harshitgarg/SIH2026/app/ml/artifacts/wallet_suspicion_model.joblib"
 }
