@@ -237,6 +237,54 @@ class WalletSuspicionDetector:
             "model_version": self.bundle.get("version", "1.0.0") if self.bundle else "heuristic_fallback",
         }
 
+    def predict_from_features(
+        self,
+        features: dict[str, float],
+        chain: str = "ETH",
+        wallet_address: str = "",
+    ) -> dict[str, Any]:
+        """Run ML inference on a pre-extracted feature dictionary.
+
+        Use this when features have already been extracted via
+        ``WalletFeatureExtractor.extract_from_graph()`` so that
+        graph-level context (entity_type of neighbours, is_mixer flags)
+        is correctly propagated.  Avoids double-extraction.
+        """
+        if self.is_trained and self.bundle is not None:
+            model = self.bundle["model"]
+            scaler = self.bundle["scaler"]
+            feature_vector = np.array(
+                [[float(features.get(name, 0.0)) for name in FEATURE_NAMES]],
+                dtype=np.float32,
+            )
+            scaled_vector = scaler.transform(feature_vector)
+            prob = float(model.predict_proba(scaled_vector)[0, 1])
+        else:
+            rf = features.get("rapid_forwarding_ratio", 0.0)
+            hre = features.get("high_risk_entity_exposure", 0.0)
+            bvr = features.get("burst_volume_ratio", 0.0)
+            prob = min(1.0, 0.4 * rf + 0.4 * hre + 0.2 * bvr)
+
+        score = max(0, min(100, round(prob * 100)))
+        is_suspicious = bool(prob >= 0.5)
+        band = "high" if score >= 70 else ("medium" if score >= 40 else "low")
+        confidence = round(float(abs(prob - 0.5) * 2.0), 4)
+        factors, patterns = self._generate_explanations(features, prob)
+
+        return {
+            "wallet_address": wallet_address,
+            "chain": chain,
+            "is_suspicious": is_suspicious,
+            "suspicion_score": score,
+            "suspicion_probability": round(prob, 4),
+            "risk_band": band,
+            "confidence": confidence,
+            "detected_patterns": patterns,
+            "contributing_factors": factors,
+            "extracted_features": features,
+            "model_version": self.bundle.get("version", "1.0.0") if self.bundle else "heuristic_fallback",
+        }
+
     def predict_batch(
         self,
         items: list[dict[str, Any]],

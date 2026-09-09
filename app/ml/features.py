@@ -292,7 +292,13 @@ class WalletFeatureExtractor:
         return feature_dict
 
     def extract_from_graph(self, G: nx.DiGraph, wallet_address: str) -> dict[str, float]:
-        """Extract features directly from a NetworkX transaction graph."""
+        """Extract features directly from a NetworkX transaction graph.
+
+        This is the preferred method for real-wallet ML scoring because it can
+        read entity_type labels from neighbor nodes (set by the VASP finder,
+        intel lookup, and deposit sweep detector) and propagate them as
+        is_risk/is_mixer flags, giving the ML model the full graph context.
+        """
         w_lower = wallet_address.strip().lower()
         node = None
         for n in G.nodes():
@@ -303,26 +309,42 @@ class WalletFeatureExtractor:
         if node is None or node not in G:
             return {name: 0.0 for name in FEATURE_NAMES}
 
+        HIGH_RISK_TYPES = frozenset({
+            "mixer", "tumbler", "darknet", "sanctioned",
+            "ransomware", "bridge", "scam",
+        })
+
         tx_list: list[dict[str, Any]] = []
 
-        # Outgoing edges
+        # Outgoing edges — enrich is_risk from the target node's entity_type
         for _, to_node, data in G.out_edges(node, data=True):
+            to_attrs = G.nodes[to_node]
+            neighbor_entity = str(to_attrs.get("entity_type", "")).lower()
+            is_high_risk_neighbor = neighbor_entity in HIGH_RISK_TYPES
             tx_list.append({
                 "from_addr": node,
                 "to_addr": to_node,
                 "amount": data.get("amount", 0.0),
                 "timestamp": data.get("timestamp"),
-                "is_bridge": data.get("is_bridge", False),
+                # Mark as risk if edge flagged OR destination is a known high-risk entity
+                "is_risk": bool(data.get("is_risk")) or is_high_risk_neighbor,
+                "is_mixer": bool(data.get("is_mixer")) or neighbor_entity in ("mixer", "tumbler"),
+                "is_bridge": bool(data.get("is_bridge")),
             })
 
-        # Incoming edges
+        # Incoming edges — enrich is_risk from the source node's entity_type
         for from_node, _, data in G.in_edges(node, data=True):
+            from_attrs = G.nodes[from_node]
+            sender_entity = str(from_attrs.get("entity_type", "")).lower()
+            is_high_risk_sender = sender_entity in HIGH_RISK_TYPES
             tx_list.append({
                 "from_addr": from_node,
                 "to_addr": node,
                 "amount": data.get("amount", 0.0),
                 "timestamp": data.get("timestamp"),
-                "is_bridge": data.get("is_bridge", False),
+                "is_risk": bool(data.get("is_risk")) or is_high_risk_sender,
+                "is_mixer": bool(data.get("is_mixer")) or sender_entity in ("mixer", "tumbler"),
+                "is_bridge": bool(data.get("is_bridge")),
             })
 
         return self.extract_from_transactions(wallet_address, tx_list)

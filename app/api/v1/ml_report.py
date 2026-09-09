@@ -22,11 +22,13 @@ from app.auth.models import User
 from app.db.session import get_db
 from app.graph.models import TraceGraph, TraceJob
 from app.ml.detector import WalletSuspicionDetector
+from app.ml.features import FEATURE_NAMES, WalletFeatureExtractor
 
 router = APIRouter(prefix="/traces", tags=["ml"])
 
-# Singleton detector — model loaded once at import time
+# Singleton detector and extractor — loaded once at import time
 _detector = WalletSuspicionDetector()
+_extractor = WalletFeatureExtractor()
 
 
 @router.get(
@@ -74,13 +76,13 @@ async def get_ml_report(
     except Exception:
         return _fallback_report(job)
 
-    # 4. Run ML detector on seed wallet
+    # 4. Run ML detector on seed wallet using the graph-aware extractor.
+    # extract_from_graph reads entity_type from all neighbour nodes (set by
+    # VASP finder, intel lookup, deposit sweep detector) and propagates them
+    # as is_risk/is_mixer flags — giving the model full context.
     seed = job.wallet_address
-    result = _detector.predict_wallet(
-        wallet_address=seed,
-        transactions=_extract_tx_list(G, seed),
-        chain=job.chain,
-    )
+    features = _extractor.extract_from_graph(G, seed)
+    result = _detector.predict_from_features(features, chain=job.chain)
 
     # 5. Build graph summary for fund-flow page
     nodes_summary = [
