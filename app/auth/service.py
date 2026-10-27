@@ -16,7 +16,7 @@ from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import User
+from app.auth.models import User, UserRole
 
 # ---------------------------------------------------------------------------
 # Password hashing context — bcrypt with minimum cost factor 12 (Req 16.1)

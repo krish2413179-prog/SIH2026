@@ -46,7 +46,7 @@ services:
       TRACE_QUEUE_DEPTH_LIMIT: 100
 
       # ── CORS (comma‑separated origins) ───────────────────
-      CORS_ORIGINS: http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://your-production-domain.com
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:3001,http://127.0.0.1:3000,http://127.0.0.1:3001,https://sih-2026-five-lyart.vercel.app"
 
       # ── Object Storage (MinIO) – keep defaults if unused ─
       S3_ENDPOINT_URL: http://localhost:9000
