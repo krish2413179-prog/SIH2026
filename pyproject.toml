@@ -15,7 +15,7 @@ dependencies = [
     "gunicorn>=22.0.0",
 
     # Database
-    "sqlalchemy>=2.0.30",
+    "sqlalchemy[asyncio]>=2.0.30",
     "alembic>=1.13.1",
     "asyncpg>=0.29.0",
     "psycopg[binary]>=3.2.10",
