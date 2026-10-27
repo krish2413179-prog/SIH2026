@@ -59,14 +59,25 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # ── CORS — Dynamically allow all origins (localhost, Vercel, Render)
+    # ── CORS ─────────────────────────────────────────────────────
+    # Browsers reject allow_credentials=True when the origin is a wildcard.
+    # Origins must be listed explicitly. Add more via the CORS_ORIGINS env var
+    # (comma-separated). Deployed hosting domains are matched via regex.
+    _fallback = ["http://localhost:3000", "http://localhost:3001", "http://127.0.0.1:3000"]
+    _origins = list(dict.fromkeys(settings.cors_origins_list + _fallback))
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origin_regex=r"https?://.*",
+        allow_origins=_origins,
+        allow_origin_regex=r"https://.*\.(vercel\.app|render\.com|railway\.app)",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    # ── Temporarily disabled for Hackathon to fix CORS/Connectivity ──
+    # app.add_middleware(AuditMiddleware)
+    # app.add_middleware(SecurityHeadersMiddleware)
 
     # ── Rate limiter (slowapi) ────────────────────────────────
     app.state.limiter = limiter
